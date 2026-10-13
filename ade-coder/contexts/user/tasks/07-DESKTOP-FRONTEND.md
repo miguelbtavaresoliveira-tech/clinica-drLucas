@@ -463,7 +463,7 @@
 ---
 
 ### TASK-089: `DefinirSenhaMestreTela` (UL-01)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: suíte completa, vue-tsc, oxlint e build limpos. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-088
 - **Objetivo**: Definir no primeiro acesso a senha mestre que abre os dados deste computador sem internet (RN-24).
 - **Arquivos permitidos**: `src/acesso/ui/telas/DefinirSenhaMestreTela.vue` (substituir placeholder), `.spec.ts` (novo)
@@ -498,7 +498,7 @@
 ---
 
 ### TASK-090: `DesbloqueioTela` e "Esqueci a senha mestre" (UL-02, UL-03, UL-10)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: suíte completa, vue-tsc, oxlint e build limpos. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-089
 - **Objetivo**: Abrir o app offline com senha mestre (ou biometria, se habilitada), respeitando o atraso persistido (RN-27), e oferecer a redefinição local com aviso de perda de eventos (RN-35).
 - **Arquivos permitidos**: `src/acesso/ui/telas/DesbloqueioTela.vue` (substituir placeholder), `src/acesso/ui/telas/RedefinirDesbloqueioModal.vue` (novo), `.spec.ts` dos dois
