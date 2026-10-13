@@ -656,7 +656,7 @@
 ---
 
 ### TASK-094: `SegurancaTela` — senha, códigos, autenticador, senha mestre e biometria (UC-10, UC-13, UC-16, UL-05, UL-06)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 445 testes, vue-tsc, oxlint e build limpos. Desvio: um único SegurancaTela.spec.ts cobre a tela e os 4 modais (mais a ativação de biometria, feita num ModalDialogo dentro da própria tela). Screenshots na TASK-095)
 - **Depende de**: TASK-093, TASK-087
 - **Objetivo**: Reunir as ações de segurança da conta e do computador, todas com reautenticação local (RN-29).
 - **Arquivos permitidos** (em `src/acesso/ui/telas/`): `SegurancaTela.vue` (substituir placeholder), `TrocarSenhaModal.vue`, `RegenerarCodigosModal.vue`, `ReconfigurarMfaModal.vue`, `AlterarSenhaMestreModal.vue` (novos) e `.spec.ts` de cada
