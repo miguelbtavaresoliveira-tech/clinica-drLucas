@@ -11,3 +11,4 @@ pub mod inatividade;
 pub mod modo_offline;
 pub mod relogio;
 pub mod servico;
+pub mod sessao_remota;

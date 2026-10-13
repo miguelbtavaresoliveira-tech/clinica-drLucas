@@ -4,12 +4,13 @@ use tauri::Manager;
 
 pub mod acesso_local;
 
-use acesso_local::cofre_so::KeyringCofre;
+use acesso_local::cofre_so::{CofreDeChavesDoSo, KeyringCofre};
 use acesso_local::comandos::{self, EstadoTauri};
 use acesso_local::cripto::PARAMETROS_MINIMOS;
 use acesso_local::inatividade::iniciar_monitor;
-use acesso_local::relogio::RelogioDoSistema;
+use acesso_local::relogio::{Relogio, RelogioDoSistema};
 use acesso_local::servico::ServicoDeAcessoLocal;
+use acesso_local::sessao_remota::{ConfiguracaoDaApi, SessaoRemota};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,15 +19,19 @@ pub fn run() {
         .setup(|app| {
             let diretorio = app.path().app_data_dir()?;
             std::fs::create_dir_all(&diretorio)?;
+            let cofre: Arc<dyn CofreDeChavesDoSo> = Arc::new(KeyringCofre);
+            let relogio: Arc<dyn Relogio> = Arc::new(RelogioDoSistema);
             let servico = ServicoDeAcessoLocal::novo(
                 diretorio,
-                Arc::new(KeyringCofre),
-                Arc::new(RelogioDoSistema),
+                Arc::clone(&cofre),
+                Arc::clone(&relogio),
                 PARAMETROS_MINIMOS,
             );
+            let sessao = SessaoRemota::novo(ConfiguracaoDaApi::do_ambiente()?, cofre, relogio)?;
             let acesso = Arc::new(Mutex::new(servico));
             app.manage(EstadoTauri {
                 acesso: Arc::clone(&acesso),
+                sessao: tauri::async_runtime::Mutex::new(sessao),
             });
             iniciar_monitor(app.handle().clone(), acesso);
             Ok(())
@@ -37,6 +42,15 @@ pub fn run() {
             comandos::desbloquear_com_senha,
             comandos::bloquear,
             comandos::sinal_de_atividade,
+            comandos::api_iniciar_login,
+            comandos::api_gerar_segredo_mfa,
+            comandos::api_confirmar_mfa,
+            comandos::api_concluir_login,
+            comandos::api_renovar_sessao,
+            comandos::api_encerrar_sessao,
+            comandos::api_solicitar_redefinicao,
+            comandos::api_concluir_redefinicao,
+            comandos::api_requisicao_autenticada,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -591,7 +591,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-069: `SessaoRemota` — chamadas à API pelo Rust, tokens fora do JS (D-005, DT-05, UL-09, RN-20)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (116 no módulo, com mockito) e cargo audit validados no WSL2)
 - **Depende de**: TASK-068
 - **Objetivo**: Implementar login, MFA, renovação, logout, redefinição e requisições autenticadas com o refresh no Keychain e o access só em memória; tratar revogação do dispositivo.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/sessao_remota.rs` (novo); `servico.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)

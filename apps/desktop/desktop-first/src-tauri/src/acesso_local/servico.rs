@@ -10,12 +10,13 @@ use chrono::{DateTime, Duration, Utc};
 use super::armazenamento::{self, EstadoPersistido, Kdf, RegistroPendente};
 use super::auditoria::{self, Detalhe, TIPOS_DE_AUDITORIA_DO_APP, ValorDeDetalhe};
 use super::banco_local::BancoLocal;
-use super::cofre_so::CofreDeChavesDoSo;
+use super::cofre_so::{CHAVE_REFRESH, CofreDeChavesDoSo};
 use super::cripto::{self, Chave, ParametrosArgon2};
 use super::erros::ErroDeAcesso;
 use super::estado::{EstadoDoAcesso, MotivoDeBloqueio, Situacao, UsuarioResumo};
 use super::modo_offline::{self, PoliticaLocal};
 use super::relogio::Relogio;
+use super::sessao_remota::{DadosDoLogin, ProximoPasso};
 
 const MIN_CARACTERES_SENHA: usize = 12;
 const MAX_CARACTERES_SENHA: usize = 128;
@@ -34,6 +35,8 @@ pub struct ServicoDeAcessoLocal {
     situacao_desbloqueada: Situacao,
     reautenticado_em: Option<DateTime<Utc>>,
     ultima_atividade: Instant,
+    login_pendente: Option<DadosDoLogin>,
+    checkin_pendente: Option<(PoliticaLocal, DateTime<Utc>)>,
     sessao_online: bool,
     usuario: Option<UsuarioResumo>,
 }
@@ -55,6 +58,8 @@ impl ServicoDeAcessoLocal {
             situacao_desbloqueada: Situacao::Normal,
             reautenticado_em: None,
             ultima_atividade: Instant::now(),
+            login_pendente: None,
+            checkin_pendente: None,
             sessao_online: false,
             usuario: None,
         }
@@ -125,6 +130,7 @@ impl ServicoDeAcessoLocal {
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
         self.ultima_atividade = Instant::now();
+        self.aplicar_pendencias()?;
         self.carregar_usuario();
         self.reavaliar_modo()?;
         // Melhor esforço: o que não for descarregado continua no arquivo e sai no próximo desbloqueio.
@@ -202,11 +208,114 @@ impl ServicoDeAcessoLocal {
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
         self.ultima_atividade = Instant::now();
+        self.aplicar_pendencias()?;
         self.carregar_usuario();
         self.reavaliar_modo()?;
         // Melhor esforço: o que não for descarregado continua no arquivo e sai no próximo desbloqueio.
         let _ = self.descarregar_pendentes();
         self.estado()
+    }
+
+    pub fn dispositivo_id(&self) -> Result<Option<String>, ErroDeAcesso> {
+        Ok(armazenamento::ler(&self.diretorio)?.dispositivo_id)
+    }
+
+    pub fn definir_sessao_online(&mut self, online: bool) {
+        self.sessao_online = online;
+    }
+
+    /// Login completo concluído no servidor. Desbloqueado: grava já no banco. Bloqueado ou sem senha mestre:
+    /// guarda em memória e grava quando `configurar` ou `desbloquear_com_senha` abrirem o banco.
+    pub fn aplicar_login(&mut self, dados: DadosDoLogin) -> Result<ProximoPasso, ErroDeAcesso> {
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        persistido.dispositivo_id = Some(dados.dispositivo_id.clone());
+        persistido.falhas_consecutivas = 0;
+        persistido.ultima_falha_em = None;
+        persistido.exige_login_completo = false;
+        persistido.max_falhas_desbloqueio_local = dados.politica.max_falhas_desbloqueio_local;
+        armazenamento::salvar(&self.diretorio, &persistido)?;
+        self.sessao_online = true;
+
+        let proximo_passo = if persistido.kdf.is_none() {
+            ProximoPasso::ConfigurarDesbloqueio
+        } else if !self.esta_desbloqueado() {
+            ProximoPasso::Desbloquear
+        } else {
+            ProximoPasso::Pronto
+        };
+        if self.esta_desbloqueado() {
+            self.gravar_login(&dados)?;
+            self.reavaliar_modo()?;
+            let _ = self.descarregar_pendentes();
+        } else {
+            self.login_pendente = Some(dados);
+        }
+        Ok(proximo_passo)
+    }
+
+    /// Renovação de sessão bem-sucedida: é o "check-in" que zera o prazo offline.
+    pub fn registrar_checkin(
+        &mut self,
+        politica: PoliticaLocal,
+        quando: DateTime<Utc>,
+    ) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        if persistido.max_falhas_desbloqueio_local != politica.max_falhas_desbloqueio_local {
+            persistido.max_falhas_desbloqueio_local = politica.max_falhas_desbloqueio_local;
+            armazenamento::salvar(&self.diretorio, &persistido)?;
+        }
+        self.sessao_online = true;
+        if self.esta_desbloqueado() {
+            self.gravar_checkin(&politica, quando)?;
+            self.reavaliar_modo()
+        } else {
+            self.checkin_pendente = Some((politica, quando));
+            self.estado()
+        }
+    }
+
+    /// UL-09: o servidor revogou este computador. Marca o arquivo, remove o refresh e bloqueia.
+    /// Nenhum dado é apagado.
+    pub fn processar_revogacao(&mut self) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        persistido.revogado = true;
+        armazenamento::salvar(&self.diretorio, &persistido)?;
+        self.cofre.remover(CHAVE_REFRESH)?;
+        self.sessao_online = false;
+        self.login_pendente = None;
+        self.checkin_pendente = None;
+        self.bloquear(MotivoDeBloqueio::Revogacao)
+    }
+
+    fn aplicar_pendencias(&mut self) -> Result<(), ErroDeAcesso> {
+        if let Some(dados) = self.login_pendente.clone() {
+            self.gravar_login(&dados)?;
+            self.login_pendente = None;
+        }
+        if let Some((politica, quando)) = self.checkin_pendente.clone() {
+            self.gravar_checkin(&politica, quando)?;
+            self.checkin_pendente = None;
+        }
+        Ok(())
+    }
+
+    fn gravar_login(&mut self, dados: &DadosDoLogin) -> Result<(), ErroDeAcesso> {
+        let usuario = serde_json::to_string(&dados.usuario).map_err(|_| ErroDeAcesso::Interno)?;
+        self.banco()?.gravar_valor("usuario", &usuario)?;
+        self.gravar_checkin(&dados.politica, dados.ocorrido_em)?;
+        self.usuario = Some(dados.usuario.clone());
+        Ok(())
+    }
+
+    fn gravar_checkin(
+        &self,
+        politica: &PoliticaLocal,
+        quando: DateTime<Utc>,
+    ) -> Result<(), ErroDeAcesso> {
+        let banco = self.banco()?;
+        let politica_json = serde_json::to_string(politica).map_err(|_| ErroDeAcesso::Interno)?;
+        banco.gravar_valor(CHAVE_POLITICA, &politica_json)?;
+        banco.gravar_valor(CHAVE_ULTIMO_CHECKIN, &quando.to_rfc3339())
     }
 
     /// Política vinda do banco (gravada no login) ou o padrão.
@@ -1017,6 +1126,127 @@ mod testes {
         for registro in auditoria::pendentes(servico.banco().unwrap(), 100).unwrap() {
             assert!(!serde_json::to_string(&registro).unwrap().contains(senha));
         }
+    }
+
+    fn dados_do_login(ambiente: &Ambiente) -> DadosDoLogin {
+        DadosDoLogin {
+            usuario: UsuarioResumo {
+                id: "11111111-1111-4111-8111-111111111111".to_owned(),
+                nome: "Lucas".to_owned(),
+                email: "lucas@clinica.com".to_owned(),
+            },
+            politica: PoliticaLocal {
+                max_falhas_desbloqueio_local: 7,
+                ..PoliticaLocal::default()
+            },
+            dispositivo_id: "22222222-2222-4222-8222-222222222222".to_owned(),
+            ocorrido_em: ambiente.relogio.agora(),
+        }
+    }
+
+    #[test]
+    fn login_antes_da_senha_mestre_e_aplicado_ao_configurar() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        let passo = servico.aplicar_login(dados_do_login(&ambiente)).unwrap();
+        assert_eq!(passo, ProximoPasso::ConfigurarDesbloqueio);
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(
+            disco.dispositivo_id.as_deref(),
+            Some("22222222-2222-4222-8222-222222222222")
+        );
+        assert_eq!(disco.max_falhas_desbloqueio_local, 7);
+        assert!(servico.estado().unwrap().sessao_online);
+
+        let estado = servico.configurar(SENHA).unwrap();
+        assert_eq!(estado.usuario.unwrap().nome, "Lucas");
+        assert!(
+            servico
+                .banco()
+                .unwrap()
+                .ler_valor("usuario")
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            servico
+                .banco()
+                .unwrap()
+                .ler_valor("politica")
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn login_com_o_app_desbloqueado_grava_direto_e_libera() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        let passo = servico.aplicar_login(dados_do_login(&ambiente)).unwrap();
+        assert_eq!(passo, ProximoPasso::Pronto);
+        assert_eq!(servico.estado().unwrap().usuario.unwrap().nome, "Lucas");
+        assert_eq!(servico.politica().max_falhas_desbloqueio_local, 7);
+    }
+
+    #[test]
+    fn login_com_o_app_bloqueado_pede_desbloqueio_e_zera_o_contador() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        ambiente.errar(&mut servico);
+        assert_eq!(
+            servico.aplicar_login(dados_do_login(&ambiente)).unwrap(),
+            ProximoPasso::Desbloquear
+        );
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(disco.falhas_consecutivas, 0);
+        assert!(!disco.exige_login_completo);
+        servico.desbloquear_com_senha(SENHA).unwrap();
+        assert_eq!(servico.estado().unwrap().usuario.unwrap().nome, "Lucas");
+    }
+
+    #[test]
+    fn checkin_com_o_app_bloqueado_vale_no_proximo_desbloqueio() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+
+        ambiente.relogio.avancar(Duration::days(7));
+        servico
+            .registrar_checkin(PoliticaLocal::default(), ambiente.relogio.agora())
+            .unwrap();
+        let estado = servico.desbloquear_com_senha(SENHA).unwrap();
+        assert_eq!(estado.situacao, Situacao::Normal);
+    }
+
+    #[test]
+    fn sem_checkin_a_mesma_espera_deixa_somente_leitura() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        ambiente.relogio.avancar(Duration::days(7));
+        let estado = servico.desbloquear_com_senha(SENHA).unwrap();
+        assert_eq!(estado.situacao, Situacao::SomenteLeitura);
+    }
+
+    #[test]
+    fn revogacao_marca_o_arquivo_remove_o_refresh_e_preserva_os_dados() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        ambiente
+            .cofre
+            .guardar(CHAVE_REFRESH, b"refresh-secreto")
+            .unwrap();
+        let estado = servico.processar_revogacao().unwrap();
+        assert_eq!(estado.situacao, Situacao::Revogado);
+        assert!(ambiente.cofre.ler(CHAVE_REFRESH).unwrap().is_none());
+        assert!(ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+        assert!(!servico.esta_desbloqueado());
     }
 
     #[test]
