@@ -52,7 +52,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-050: Pipe de validação zod e filtro global de erros
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 496 testes, tsc e oxlint limpos. Extra: erros de parsing do body-parser (JSON malformado) viram 4xx em vez de 500)
 - **Depende de**: TASK-047
 - **Objetivo**: Validar entradas sem vazar valores e traduzir erros tipados para HTTP só na borda (DT-14, SPEC §6.6, D-011).
 - **Arquivos permitidos** (novos, em `interface/http/`): `pipes/validacao-zod.pipe.ts`, `filtros/tabela-de-erros.ts`, `filtros/filtro-de-erros.ts` e `.spec.ts` para o pipe e o filtro
@@ -113,7 +113,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-051: Guards de autenticação/permissão e decorators
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 574 testes, tsc e oxlint limpos)
 - **Depende de**: TASK-050
 - **Objetivo**: Montar o `ContextoDeAcesso` a partir do access token e exigir permissões por rota (RN-31, SPEC §6.5).
 - **Arquivos permitidos** (novos, em `interface/http/`): `guards/autenticacao.guard.ts`, `guards/permissao.guard.ts`, `decorators/requer-permissao.ts`, `decorators/contexto-atual.ts`, `decorators/ip-da-requisicao.ts`, `requisicao-autenticada.ts` e `.spec.ts` para os dois guards
@@ -158,7 +158,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-052: DTOs (schemas zod) e apresentadores de resposta
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 574 testes, tsc e oxlint limpos)
 - **Depende de**: TASK-051
 - **Objetivo**: Um schema zod por corpo de requisição e funções puras que formatam as saídas, conforme o **Contrato HTTP** no topo deste arquivo.
 - **Arquivos permitidos** (novos, em `interface/http/`): `dtos/auth.dtos.ts`, `dtos/dispositivos.dtos.ts`, `dtos/auditoria.dtos.ts`, `dtos/comuns.ts`, `apresentadores.ts` e `dtos/dtos.spec.ts`, `apresentadores.spec.ts`
@@ -190,7 +190,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-053: Módulo Nest `IdentidadeEAcessoModule`, `AppModule` e endurecimento do `main.ts`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: E2E 7 testes (inclui 413/400/404 no formato de erro, sem CORS, cabeçalhos), unit, int e build limpos. Desvios: endurecimento extraído para interface/http/endurecer-aplicacao.ts (para main.ts e testes usarem o mesmo código); test/carregar-env.ts define valores FALSOS de teste para segredos ausentes)
 - **Depende de**: TASK-052
 - **Objetivo**: Ligar portas a adaptadores via injeção de dependência, registrar limite de taxa e filtro global, e endurecer o servidor HTTP.
 - **Arquivos permitidos**:
@@ -255,7 +255,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-054: `AuthController` (rotas `/auth/*`)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: 15 cenários E2E de /auth/* contra Postgres real + 7 anteriores; tsc e oxlint limpos. Desvios: helpers em e2e/ajudantes.ts; teste de bloqueio usa 2ª instância do app porque o limite de taxa (5/min) é por instância)
 - **Depende de**: TASK-053
 - **Objetivo**: Expor UC-02 a UC-07, UC-10 a UC-13 e UC-16 conforme o **Contrato HTTP**.
 - **Arquivos permitidos**: `interface/http/controllers/auth.controller.ts` (novo), `identidade-e-acesso.module.ts` (editar: só adicionar o controller), `test/identidade-e-acesso/e2e/auth.e2e-spec.ts` (novo)
@@ -303,7 +303,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-055: Controllers de dispositivos, auditoria e usuários
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: 11 cenários E2E (revogação→refresh 403, IDOR 404, lote de auditoria com assinatura Ed25519 real da semente D-009, último proprietário 409); suíte E2E total 33 testes; tsc e oxlint limpos)
 - **Depende de**: TASK-054
 - **Objetivo**: Expor UC-08, UC-09, UC-14 e UC-15.
 - **Arquivos permitidos**: `interface/http/controllers/dispositivos.controller.ts`, `interface/http/controllers/auditoria.controller.ts`, `interface/http/controllers/usuarios.controller.ts` (novos); `identidade-e-acesso.module.ts` (editar: só adicionar controllers); `test/identidade-e-acesso/e2e/dispositivos-e-auditoria.e2e-spec.ts` (novo)
@@ -336,7 +336,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-056: Comandos administrativos (CLI) — criar proprietário e redefinir acesso
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: 14 testes unitários + execução REAL da CLI (build + node dist/...) contra Postgres: criação exit 0, 2ª recusada exit 1, senhas diferentes exit 1, redefinição sem REDEFINIR exit 1 e confirmada exit 0; auditoria sem senha. Bug achado na execução real e corrigido: readline.question perdia linhas com stdin redirecionado, trocado por iterador de linhas)
 - **Depende de**: TASK-053
 - **Objetivo**: RN-01 (primeiro proprietário só por comando no servidor) e RN-36 (último recurso), sem senha em argumentos de linha de comando.
 - **Arquivos permitidos** (novos, em `interface/cli/`): `terminal.ts`, `criar-primeiro-proprietario.ts`, `redefinir-acesso.ts`, `executar-criacao.ts`, `executar-redefinicao.ts`, `executar-criacao.spec.ts`, `executar-redefinicao.spec.ts`
@@ -378,7 +378,7 @@ Formato de erro (todas as rotas): `{ "erro": { "codigo": string, "mensagem": str
 ---
 
 ### TASK-057: E2E de ponta a ponta do servidor e recuperação
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: 10 cenários E2E de recuperação/auditoria (token único, expirado, MFA exigido, recuperação, reconfiguração, limite de 3 dispositivos, auditoria sem senha/token por SQL, roteiro SPEC §10). Suíte backend: 591 unit + 44 int + 42 E2E. Desvio: reaproveita e2e/ajudantes.ts em vez de criar apoio.ts)
 - **Depende de**: TASK-055, TASK-056
 - **Objetivo**: Garantir os fluxos completos de recuperação (RN-33, RN-34) e o roteiro "Pronto quando" do lado servidor (SPEC §10).
 - **Arquivos permitidos**: `backend/test/identidade-e-acesso/e2e/recuperacao.e2e-spec.ts` (novo), `backend/test/identidade-e-acesso/e2e/apoio.ts` (novo: helpers `criarApp(relogio)`, `semearProprietario(app)`, `primeiroAcesso(app, relogio)`, `gerarTotp(segredo, relogio)`)

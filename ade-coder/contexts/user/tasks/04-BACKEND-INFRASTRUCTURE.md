@@ -27,7 +27,7 @@
 ---
 
 ### TASK-040: Schema Drizzle `identidade`, migrations e trava append-only
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude contra Postgres 17 real: 7 tabelas, índice parcial, trigger append-only (UPDATE/DELETE/TRUNCATE), checks e FKs; 11 testes de integração. Desvio: drizzle-kit generate chamado direto (pnpm run db:gerar -- não repassa --name))
 - **Depende de**: TASK-004
 - **Objetivo**: Traduzir o esquema SQL da SPEC §7.1 (+ colunas D-006) para Drizzle, gerar as migrations e garantir no banco que a auditoria é append-only (RN-39).
 - **Arquivos permitidos**:
@@ -118,7 +118,7 @@
 ---
 
 ### TASK-041: Adaptadores criptográficos — Argon2id, códigos de recuperação, SHA-256, Ed25519
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 449 testes, tsc, oxlint e build ESM limpos. Desvio: argon2 grava m=19456,p=1,t=2 (ordem diferente do texto da tarefa); spec valida cada parâmetro)
 - **Depende de**: TASK-020
 - **Objetivo**: Implementar `HasherDeSenha` (RN-06, DT-02), `GeradorDeCodigosDeRecuperacao` (D-013), `CalculadoraDeHash` e `VerificadorDeAssinatura` (D-009).
 - **Arquivos permitidos** (novos, em `infrastructure/adaptadores/`): `argon2id-hasher.ts`, `gerador-de-codigos-de-recuperacao.ts`, `sha256-calculadora-de-hash.ts`, `ed25519-verificador-de-assinatura.ts` e um `.spec.ts` para cada
@@ -177,7 +177,7 @@
 ---
 
 ### TASK-042: `OtplibServicoTotp` e `AesGcmCofreDeSegredos`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 449 testes, tsc, oxlint e build ESM limpos. Desvio: argon2 grava m=19456,p=1,t=2 (ordem diferente do texto da tarefa); spec valida cada parâmetro)
 - **Depende de**: TASK-041
 - **Objetivo**: TOTP RFC 6238 com janela ±1 e bloqueio de passo repetido (RN-10, DT-03) e cifra do segredo em repouso (DT-03, D-013).
 - **Arquivos permitidos** (novos, em `infrastructure/adaptadores/`): `otplib-servico-totp.ts`, `aes-gcm-cofre-de-segredos.ts` e seus `.spec.ts`
@@ -234,7 +234,7 @@
 ---
 
 ### TASK-043: `JwtEmissorDeTokens`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 449 testes, tsc, oxlint e build ESM limpos. Desvio: argon2 grava m=19456,p=1,t=2 (ordem diferente do texto da tarefa); spec valida cada parâmetro)
 - **Depende de**: TASK-041
 - **Objetivo**: Access token JWT HS256 de 15 min, desafio de login assinado com segredo separado e tokens opacos (DT-04, D-013).
 - **Arquivos permitidos**: `infrastructure/adaptadores/jwt-emissor-de-tokens.ts` e `.spec.ts` (novos)
@@ -276,7 +276,7 @@
 ---
 
 ### TASK-044: Relógio, barramento, lista de senhas comuns e política a partir da configuração
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 449 testes, tsc, oxlint e build ESM limpos. Desvio: argon2 grava m=19456,p=1,t=2 (ordem diferente do texto da tarefa); spec valida cada parâmetro)
 - **Depende de**: TASK-041
 - **Objetivo**: Adaptadores simples restantes e a ponte `Configuracao → PoliticaDeAcesso`.
 - **Arquivos permitidos** (novos): `infrastructure/adaptadores/relogio-do-sistema.ts`, `infrastructure/adaptadores/barramento-em-processo.ts`, `infrastructure/seguranca/senhas-comuns.ts`, `infrastructure/config/politica-de-acesso.config.ts` e `.spec.ts` para barramento e política
@@ -316,7 +316,7 @@
 ---
 
 ### TASK-045: `SmtpEnviadorDeEmail` e `EnviadorDeEmailDesabilitado`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 455 testes, tsc e oxlint limpos)
 - **Depende de**: TASK-044
 - **Objetivo**: Enviar o e-mail de redefinição por SMTP genérico (D-007, DT-16) e ter um substituto seguro quando SMTP não estiver configurado (dev/teste).
 - **Arquivos permitidos** (novos, em `infrastructure/adaptadores/`): `smtp-enviador-de-email.ts`, `enviador-de-email-desabilitado.ts` e seus `.spec.ts`
@@ -370,7 +370,7 @@
 ---
 
 ### TASK-046: Repositórios Drizzle de `Usuario`, `Dispositivo` e `SessaoDeLogin`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude contra Postgres 17 real: 44 testes de integração + 455 unitários, tsc, oxlint e build limpos. Desvios: teste de payload de injeção usa strings sem espaço (Email já recusa espaços); idsExistentes/porId filtram ids não-UUID para evitar erro de cast)
 - **Depende de**: TASK-040, TASK-021
 - **Objetivo**: Persistir os agregados com controle otimista de versão e mapeamento fiel (SPEC §7.1).
 - **Arquivos permitidos** (novos, em `infrastructure/persistencia/`): `executor.ts`, `erros-de-banco.ts`, `mapeadores.ts`, `repositorios/usuario-repositorio-drizzle.ts`, `repositorios/dispositivo-repositorio-drizzle.ts`, `repositorios/sessao-de-login-repositorio-drizzle.ts`; testes em `backend/test/identidade-e-acesso/int/repositorios-de-agregados.int-spec.ts` (novo)
@@ -432,7 +432,7 @@
 ---
 
 ### TASK-047: Repositórios de desafio, token, auditoria encadeada e `DrizzleUnidadeDeTrabalho`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude contra Postgres 17 real: 44 testes de integração + 455 unitários, tsc, oxlint e build limpos. Desvios: teste de payload de injeção usa strings sem espaço (Email já recusa espaços); idsExistentes/porId filtram ids não-UUID para evitar erro de cast)
 - **Depende de**: TASK-046, TASK-041
 - **Objetivo**: Completar a persistência com operações atômicas de uso único, auditoria do servidor encadeada por hash (RN-39, SPEC §9 Infra) e a unidade de trabalho transacional.
 - **Arquivos permitidos** (novos, em `infrastructure/persistencia/`): `repositorios/desafio-de-login-repositorio-drizzle.ts`, `repositorios/token-de-redefinicao-repositorio-drizzle.ts`, `repositorios/auditoria-repositorio-drizzle.ts`, `fabrica-de-repositorios.ts`, `drizzle-unidade-de-trabalho.ts`; teste `backend/test/identidade-e-acesso/int/repositorios-de-suporte.int-spec.ts` (novo)

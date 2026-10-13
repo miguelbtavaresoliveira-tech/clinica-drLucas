@@ -22,7 +22,7 @@
 ---
 
 ### TASK-001: Remover `node_modules` do git e criar `.gitignore` na raiz
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (revisada por Claude; .gitignore corrigido diretamente — agente reportou gravação falsa)
 - **Depende de**: nenhuma
 - **Objetivo**: O commit `9d17971` versionou 45.509 arquivos de `backend/node_modules`. Isso infla o repositório, esconde mudanças reais em diffs e permite que pacotes adulterados entrem por commit (D-015).
 - **Arquivos permitidos**: `.gitignore` (raiz, novo); remoção do índice de `backend/node_modules/**`
@@ -87,7 +87,7 @@
 ---
 
 ### TASK-002: Dependências, scripts e regras de lint do backend
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: dependências instaladas em backend/ (pnpm-workspace.yaml local aprova só argon2 e esbuild); audit --prod sem vulnerabilidades; any=error e no-console ativos)
 - **Depende de**: TASK-001
 - **Objetivo**: Instalar de uma vez todas as bibliotecas previstas no plano (D-001, D-007, D-012, DT-02, DT-03, DT-04, DT-06) e os scripts usados nas tarefas seguintes, para que nenhuma outra tarefa precise tocar `package.json`.
 - **Arquivos permitidos**: `backend/package.json`, `backend/pnpm-lock.yaml`, `backend/.oxlintrc.json`
@@ -148,7 +148,7 @@
 ---
 
 ### TASK-003: Configuração validada por ambiente (`carregarConfiguracao`)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: configuracao.ts reescrito conforme contrato; 12 testes; .env.example completo; main.ts carrega .env só se existir)
 - **Depende de**: TASK-002
 - **Objetivo**: Ler e validar com zod todas as variáveis de ambiente do contexto (segredos, banco, SMTP, parâmetros da SPEC §2), falhando cedo e **sem nunca imprimir valores** (D-012, P-01, P-03).
 - **Arquivos permitidos**:
@@ -254,7 +254,7 @@
 ---
 
 ### TASK-004: Postgres local, conexão Drizzle e suíte de integração
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (verificada pelo Claude: Postgres 17 healthy em 127.0.0.1, test:int com 4 testes, pnpm test não executa *.int-spec.ts. Desvio: teste extra para DATABASE_URL_TESTE ausente)
 - **Depende de**: TASK-003
 - **Objetivo**: Subir PostgreSQL 17 via Docker apenas em `127.0.0.1`, criar o banco de teste, a conexão Drizzle e a configuração `test:int` com trava contra rodar testes no banco errado (D-001).
 - **Arquivos permitidos**:
