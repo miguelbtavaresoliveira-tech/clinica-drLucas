@@ -170,7 +170,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-061: `cripto.rs` — DEK, Argon2id e embrulho AES-256-GCM
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (10 novos) validados no WSL2)
 - **Depende de**: TASK-060
 - **Objetivo**: Implementar a hierarquia de chaves (DT-07) e a derivação calibrada (DT-09).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/cripto.rs` (novo), `mod.rs` (só `pub mod cripto;`)
