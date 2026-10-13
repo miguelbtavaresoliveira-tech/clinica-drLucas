@@ -69,4 +69,10 @@ describe('guard do roteador', () => {
     await r.push('/entrar');
     expect(r.currentRoute.value.name).toBe('login');
   });
+
+  it('sem estado carregável, qualquer rota protegida vai para o login', async () => {
+    const { r } = roteador(null);
+    await r.push('/');
+    expect(r.currentRoute.value.name).toBe('login');
+  });
 });

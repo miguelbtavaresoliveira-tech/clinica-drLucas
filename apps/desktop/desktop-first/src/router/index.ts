@@ -61,6 +61,8 @@ export const rotas: RouteRecordRaw[] = [
   { path: "/:caminho(.*)*", redirect: { name: "inicio" } },
 ];
 
+const ROTAS_SEM_ESTADO = new Set<string>(["login", "redefinir-senha"]);
+
 export interface DependenciasDoGuard {
   /** Estado atual (null = ainda não carregado) e carregamento sob demanda. */
   estado: () => EstadoDoAcesso | null;
@@ -80,7 +82,8 @@ export function instalarGuard(roteador: Router, deps: DependenciasDoGuard): void
       try {
         estado = await deps.carregar();
       } catch {
-        return true;
+        // Sem estado (ex.: fora do Tauri) não há sessão: mostra o login em vez de um início vazio.
+        return ROTAS_SEM_ESTADO.has(para.name) ? true : { name: "login" };
       }
     }
     const destino = destinoPara(para.name as NomeDaRota, { estado, mfaPendente: deps.mfaPendente() });
