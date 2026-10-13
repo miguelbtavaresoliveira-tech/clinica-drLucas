@@ -264,3 +264,46 @@ pub async fn enviar_auditoria_pendente(
     emitir_estado_atual(&app, &estado).await;
     resultado.map(|enviados| ResumoDoEnvio { enviados })
 }
+
+/// UL-07: abre a janela de reautenticação. `"biometria"` fica indisponível até a TASK-073.
+#[tauri::command]
+pub async fn reautenticar(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+    metodo: String,
+    senha: Option<String>,
+) -> Result<(), ErroDeAcesso> {
+    let resultado = match metodo.as_str() {
+        "senha" => {
+            let senha = Zeroizing::new(senha.ok_or(ErroDeAcesso::Interno)?);
+            executar(&estado, move |servico| {
+                servico.reautenticar_com_senha(&senha)
+            })
+            .await
+        }
+        "biometria" => Err(ErroDeAcesso::BiometriaIndisponivel),
+        _ => Err(ErroDeAcesso::Interno),
+    };
+    // Falhas mudam o contador e podem bloquear o app.
+    emitir_estado_atual(&app, &estado).await;
+    resultado
+}
+
+#[tauri::command]
+pub async fn alterar_senha_mestre(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+    atual: String,
+    nova: String,
+) -> Result<(), ErroDeAcesso> {
+    let atual = Zeroizing::new(atual);
+    let nova = Zeroizing::new(nova);
+    let resultado = executar(&estado, move |servico| {
+        // Calibra com a máquina atual e fora da thread do runtime assíncrono.
+        servico.definir_parametros_novos(cripto::calibrar(500, 1000));
+        servico.alterar_senha_mestre(&atual, &nova)
+    })
+    .await;
+    emitir_estado_atual(&app, &estado).await;
+    resultado
+}

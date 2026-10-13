@@ -52,6 +52,8 @@ pub fn run() {
             comandos::api_concluir_redefinicao,
             comandos::api_requisicao_autenticada,
             comandos::enviar_auditoria_pendente,
+            comandos::reautenticar,
+            comandos::alterar_senha_mestre,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

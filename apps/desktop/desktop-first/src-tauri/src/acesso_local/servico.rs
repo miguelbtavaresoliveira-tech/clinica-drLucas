@@ -525,6 +525,94 @@ impl ServicoDeAcessoLocal {
         }
     }
 
+    /// UL-07: confirma a identidade com a senha mestre e abre a janela de reautenticação (RN-29).
+    /// Usa a mesma proteção contra força bruta do desbloqueio.
+    pub fn reautenticar_com_senha(&mut self, senha: &str) -> Result<(), ErroDeAcesso> {
+        if !self.esta_desbloqueado() {
+            return Err(ErroDeAcesso::Bloqueado);
+        }
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        let Some(kdf) = persistido.kdf.clone() else {
+            return Err(ErroDeAcesso::NaoConfigurado);
+        };
+        if persistido.exige_login_completo {
+            return Err(ErroDeAcesso::ExigeLoginCompleto);
+        }
+        let agora = self.relogio.agora();
+        let restantes = armazenamento::segundos_restantes(&persistido, agora);
+        if restantes > 0 {
+            return Err(ErroDeAcesso::AguardeAntesDeTentar {
+                segundos_restantes: restantes,
+            });
+        }
+
+        // Pré-incrementa e grava antes de derivar, como no desbloqueio.
+        persistido.falhas_consecutivas = persistido.falhas_consecutivas.saturating_add(1);
+        persistido.ultima_falha_em = Some(agora);
+        armazenamento::salvar(&self.diretorio, &persistido)?;
+
+        let salt = STANDARD
+            .decode(&kdf.salt_b64)
+            .map_err(|_| ErroDeAcesso::Interno)?;
+        let kek = cripto::derivar_kek(senha, &salt, kdf.parametros)?;
+        let embrulhada = persistido
+            .dek_por_senha
+            .clone()
+            .ok_or(ErroDeAcesso::Interno)?;
+        let confere = match (cripto::desembrulhar(&embrulhada, &kek), self.dek.as_ref()) {
+            (Some(candidata), Some(em_memoria)) => {
+                iguais_em_tempo_constante(&candidata, em_memoria)
+            }
+            _ => false,
+        };
+
+        if !confere {
+            if persistido.falhas_consecutivas >= persistido.max_falhas_desbloqueio_local {
+                persistido.exige_login_completo = true;
+                armazenamento::salvar(&self.diretorio, &persistido)?;
+                self.bloquear(MotivoDeBloqueio::Manual)?;
+                return Err(ErroDeAcesso::ExigeLoginCompleto);
+            }
+            return Err(ErroDeAcesso::SenhaMestreIncorreta);
+        }
+
+        persistido.falhas_consecutivas = 0;
+        persistido.ultima_falha_em = None;
+        armazenamento::salvar(&self.diretorio, &persistido)?;
+        self.reautenticado_em = Some(agora);
+        self.auditar(
+            "reautenticacao-sensivel",
+            [(
+                "metodo".to_owned(),
+                ValorDeDetalhe::Texto("senha".to_owned()),
+            )]
+            .into(),
+        )
+    }
+
+    /// Troca a senha mestre: só o embrulho da DEK muda; o banco não é recifrado (DT-07).
+    pub fn alterar_senha_mestre(&mut self, atual: &str, nova: &str) -> Result<(), ErroDeAcesso> {
+        self.reautenticar_com_senha(atual)?;
+        let tamanho = nova.chars().count();
+        if !(MIN_CARACTERES_SENHA..=MAX_CARACTERES_SENHA).contains(&tamanho) || nova == atual {
+            return Err(ErroDeAcesso::SenhaMestreFraca);
+        }
+        let dek = self.dek.as_ref().ok_or(ErroDeAcesso::Bloqueado)?;
+        let salt = cripto::gerar_salt();
+        let kek = cripto::derivar_kek(nova, &salt, self.parametros_novos)?;
+        let embrulhada = cripto::embrulhar(dek, &kek)?;
+
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        persistido.kdf = Some(Kdf {
+            algoritmo: "argon2id".to_owned(),
+            parametros: self.parametros_novos,
+            salt_b64: STANDARD.encode(salt),
+        });
+        persistido.dek_por_senha = Some(embrulhada);
+        armazenamento::salvar(&self.diretorio, &persistido)?;
+        self.auditar("senha-mestre-alterada", Detalhe::new())
+    }
+
     /// Registra que o usuário acabou de confirmar a identidade (usado pela TASK-071).
     pub fn marcar_reautenticado(&mut self) {
         self.reautenticado_em = Some(self.relogio.agora());
@@ -538,6 +626,15 @@ impl ServicoDeAcessoLocal {
             _ => Err(ErroDeAcesso::ReautenticacaoNecessaria),
         }
     }
+}
+
+/// Compara sem interromper no primeiro byte diferente.
+fn iguais_em_tempo_constante(a: &[u8; 32], b: &[u8; 32]) -> bool {
+    let mut diferenca = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diferenca |= x ^ y;
+    }
+    diferenca == 0
 }
 
 fn ler_instante(banco: &BancoLocal, chave: &str) -> Result<Option<DateTime<Utc>>, ErroDeAcesso> {
@@ -1247,6 +1344,205 @@ mod testes {
         assert!(ambiente.cofre.ler(CHAVE_REFRESH).unwrap().is_none());
         assert!(ambiente.pasta.path().join(NOME_DO_BANCO).exists());
         assert!(!servico.esta_desbloqueado());
+    }
+
+    #[test]
+    fn reautenticar_certo_abre_a_janela_e_ela_fecha_depois_de_cinco_minutos() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.reautenticar_com_senha(SENHA).unwrap();
+        assert!(servico.garantir_reautenticacao_recente(5).is_ok());
+        ambiente.relogio.avancar(Duration::seconds(5 * 60 + 1));
+        assert!(matches!(
+            servico.garantir_reautenticacao_recente(5),
+            Err(ErroDeAcesso::ReautenticacaoNecessaria)
+        ));
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert!(
+            disco
+                .auditoria_pendente
+                .iter()
+                .any(|r| r.tipo == "reautenticacao-sensivel")
+        );
+    }
+
+    #[test]
+    fn reautenticar_errado_incrementa_o_contador_persistido() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        assert!(matches!(
+            servico.reautenticar_com_senha("senha-errada-123"),
+            Err(ErroDeAcesso::SenhaMestreIncorreta)
+        ));
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(disco.falhas_consecutivas, 1);
+        assert!(matches!(
+            servico.garantir_reautenticacao_recente(5),
+            Err(ErroDeAcesso::ReautenticacaoNecessaria)
+        ));
+        servico.reautenticar_com_senha(SENHA).unwrap();
+        assert_eq!(
+            armazenamento::ler(ambiente.pasta.path())
+                .unwrap()
+                .falhas_consecutivas,
+            0
+        );
+    }
+
+    #[test]
+    fn reautenticar_bloqueado_devolve_bloqueado() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        assert!(matches!(
+            servico.reautenticar_com_senha(SENHA),
+            Err(ErroDeAcesso::Bloqueado)
+        ));
+    }
+
+    #[test]
+    fn reautenticar_respeita_o_atraso_progressivo() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        for _ in 0..3 {
+            let _ = servico.reautenticar_com_senha("senha-errada-123");
+        }
+        assert!(matches!(
+            servico.reautenticar_com_senha(SENHA),
+            Err(ErroDeAcesso::AguardeAntesDeTentar {
+                segundos_restantes: 5
+            })
+        ));
+    }
+
+    #[test]
+    fn dez_falhas_na_reautenticacao_bloqueiam_e_exigem_login_completo() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        for _ in 0..9 {
+            assert!(matches!(
+                servico.reautenticar_com_senha("senha-errada-123"),
+                Err(ErroDeAcesso::SenhaMestreIncorreta)
+            ));
+            ambiente.relogio.avancar(Duration::seconds(700));
+        }
+        assert!(matches!(
+            servico.reautenticar_com_senha("senha-errada-123"),
+            Err(ErroDeAcesso::ExigeLoginCompleto)
+        ));
+        assert!(!servico.esta_desbloqueado());
+        assert!(servico.estado().unwrap().exige_login_completo);
+        assert!(ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+    }
+
+    #[test]
+    fn trocar_a_senha_mestre_nao_recifra_o_banco() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico
+            .banco()
+            .unwrap()
+            .gravar_valor("marcador", "ainda-aqui")
+            .unwrap();
+        let nova = "outra-senha-mestre-forte";
+
+        servico.alterar_senha_mestre(SENHA, nova).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+
+        assert!(matches!(
+            servico.desbloquear_com_senha(SENHA),
+            Err(ErroDeAcesso::SenhaMestreIncorreta)
+        ));
+        ambiente.relogio.avancar(Duration::seconds(700));
+        servico.desbloquear_com_senha(nova).unwrap();
+        assert_eq!(
+            servico
+                .banco()
+                .unwrap()
+                .ler_valor("marcador")
+                .unwrap()
+                .as_deref(),
+            Some("ainda-aqui")
+        );
+        let versao: i64 = servico
+            .banco()
+            .unwrap()
+            .conexao()
+            .query_row("PRAGMA user_version", [], |l| l.get(0))
+            .unwrap();
+        assert_eq!(versao, 1);
+        let tipos: Vec<String> = armazenamento::ler(ambiente.pasta.path())
+            .unwrap()
+            .auditoria_pendente
+            .into_iter()
+            .map(|r| r.tipo)
+            .collect();
+        assert!(tipos.contains(&"senha-mestre-alterada".to_owned()));
+    }
+
+    #[test]
+    fn trocar_a_senha_gera_novo_salt_e_novo_embrulho() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        let antes = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        servico
+            .alterar_senha_mestre(SENHA, "outra-senha-mestre-forte")
+            .unwrap();
+        let depois = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_ne!(antes.kdf.unwrap().salt_b64, depois.kdf.unwrap().salt_b64);
+        assert_ne!(antes.dek_por_senha, depois.dek_por_senha);
+    }
+
+    #[test]
+    fn nova_senha_igual_a_atual_ou_curta_demais_e_recusada() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        assert!(matches!(
+            servico.alterar_senha_mestre(SENHA, SENHA),
+            Err(ErroDeAcesso::SenhaMestreFraca)
+        ));
+        assert!(matches!(
+            servico.alterar_senha_mestre(SENHA, "curta"),
+            Err(ErroDeAcesso::SenhaMestreFraca)
+        ));
+        // A senha antiga continua valendo.
+        ambiente.relogio.avancar(Duration::seconds(700));
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        assert!(servico.desbloquear_com_senha(SENHA).is_ok());
+    }
+
+    #[test]
+    fn trocar_com_a_senha_atual_errada_falha_sem_alterar_nada() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        let antes = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert!(matches!(
+            servico.alterar_senha_mestre("senha-errada-123", "outra-senha-mestre-forte"),
+            Err(ErroDeAcesso::SenhaMestreIncorreta)
+        ));
+        let depois = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(antes.kdf, depois.kdf);
+        assert_eq!(antes.dek_por_senha, depois.dek_por_senha);
+    }
+
+    #[test]
+    fn comparacao_em_tempo_constante() {
+        assert!(iguais_em_tempo_constante(&[7u8; 32], &[7u8; 32]));
+        let mut outra = [7u8; 32];
+        outra[31] = 8;
+        assert!(!iguais_em_tempo_constante(&[7u8; 32], &outra));
+        outra[31] = 7;
+        outra[0] = 0;
+        assert!(!iguais_em_tempo_constante(&[7u8; 32], &outra));
     }
 
     #[test]

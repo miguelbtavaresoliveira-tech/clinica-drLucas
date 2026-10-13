@@ -703,7 +703,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-071: Reautenticação local e troca da senha mestre (UL-06, UL-07, RN-29)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (133 no módulo, 10 novos) validados no WSL2; biometria segue para a TASK-073)
 - **Depende de**: TASK-068
 - **Objetivo**: Abrir a janela de 5 min para ações sensíveis e trocar a senha mestre sem recifrar o banco (DT-07).
 - **Arquivos permitidos**: `servico.rs`, `comandos.rs`, `lib.rs` (editar)
