@@ -274,7 +274,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-063: `cofre_so.rs` — porta `CofreDeChavesDoSo` com Keychain/Credential Manager
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (testes em memória, fmt e clippy OK no WSL2; falta rodar `EVO_TESTAR_KEYRING=1 cargo test acesso_local::cofre_so` no Windows/macOS)
 - **Depende de**: TASK-060
 - **Objetivo**: Guardar refresh token, chave de auditoria e chave de biometria no cofre do sistema (DT-05, DT-13, SPEC §6.1 porta `CofreDeChavesDoSo`).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/cofre_so.rs` (novo), `mod.rs` (só `pub mod cofre_so;`)
