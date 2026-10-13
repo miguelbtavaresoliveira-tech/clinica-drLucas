@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-brand-50: #eff9fa;
+  --color-brand-100: #d7f0f2;
+  --color-brand-200: #b4e2e6;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f4c5c;
+  --color-brand-800: #0c3b48;
+  --color-brand-900: #082832;
+  --color-brand-950: #04171d;
+  --color-surface: #f8f9ff;
+  --color-surface-dim: #cbdbf5;
+  --color-surface-low: #eff4ff;
+  --color-surface-card: #ffffff;
+}
+
+@layer base {
+  body {
+    @apply bg-[#f0f4f8] text-slate-800 font-sans antialiased min-h-screen;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-700;
+  }
+}
+
+.mesh-gradient {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(20, 184, 166, 0.22) 0%, transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(15, 76, 92, 0.45) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(12, 59, 72, 0.8) 0%, #04171d 100%);
+}
