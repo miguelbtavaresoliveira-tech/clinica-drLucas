@@ -9,6 +9,7 @@ import BannerSessao from '../componentes/BannerSessao.vue';
 import BannerSomenteLeitura from '../componentes/BannerSomenteLeitura.vue';
 import BaseBotao from '../componentes/BaseBotao.vue';
 import IndicadorConexao from '../componentes/IndicadorConexao.vue';
+import ReautenticacaoModal from '../componentes/ReautenticacaoModal.vue';
 import { useSessaoOnline } from '../composables/useSessaoOnline';
 import { useSinalDeAtividade } from '../composables/useSinalDeAtividade';
 
@@ -90,5 +91,7 @@ const links = [
     <main class="flex-1 w-full max-w-6xl mx-auto p-6">
       <slot />
     </main>
+
+    <ReautenticacaoModal />
   </div>
 </template>

@@ -29,7 +29,9 @@ watch(
     if (aberto) {
       gatilho = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       await nextTick();
-      focaveis()[0]?.focus();
+      // Um campo marcado com data-autofocus tem preferência; senão, o primeiro elemento focável.
+      const preferido = caixa.value?.querySelector<HTMLElement>('input[data-autofocus], [data-autofocus] input');
+      (preferido ?? focaveis()[0])?.focus();
     } else {
       gatilho?.focus();
       gatilho = null;

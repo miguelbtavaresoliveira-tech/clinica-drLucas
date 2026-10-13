@@ -580,7 +580,7 @@
 ---
 
 ### TASK-092: Reautenticação para ações sensíveis (UL-07, RN-29)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 408 testes, vue-tsc e oxlint limpos. Desvios: comReautenticacao só abre o modal para REAUTENTICACAO_NECESSARIA SEM status HTTP (o mesmo código vindo do servidor, com status, é erro do formulário); ModalDialogo ganhou suporte a data-autofocus)
 - **Depende de**: TASK-091
 - **Objetivo**: Um modal único, chamado por código, que pede a senha mestre (ou biometria) e abre a janela de 5 min no Rust.
 - **Arquivos permitidos**: `src/acesso/ui/componentes/ReautenticacaoModal.vue`, `src/acesso/ui/composables/useReautenticacao.ts` (novos) e `.spec.ts` dos dois; `src/acesso/ui/layout/AppShell.vue` (editar: montar o modal uma vez)
