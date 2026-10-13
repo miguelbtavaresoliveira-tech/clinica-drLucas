@@ -14,8 +14,9 @@ const props = withDefaults(
     placeholder?: string;
     desabilitado?: boolean;
     maxlength?: number;
+    monoespacado?: boolean;
   }>(),
-  { tipo: 'text', obrigatorio: false, erro: null, desabilitado: false },
+  { tipo: 'text', obrigatorio: false, erro: null, desabilitado: false, monoespacado: false },
 );
 
 const emit = defineEmits<{ 'update:modelValue': [valor: string] }>();
@@ -60,6 +61,7 @@ function aoDigitar(evento: Event): void {
         :class="[
           'w-full py-3 pr-4 rounded-xl text-sm font-medium text-slate-800 placeholder-slate-500 shadow-sm transition-all',
           'focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed',
+          monoespacado ? 'font-mono' : '',
           $slots['icone'] ? 'pl-11' : 'pl-4',
           erro
             ? 'bg-rose-50/40 border-2 border-rose-500 focus:ring-rose-500/20 focus:border-rose-600'

@@ -12,6 +12,7 @@ import BaseBotao from '../componentes/BaseBotao.vue';
 import CampoSenha from '../componentes/CampoSenha.vue';
 import CampoTexto from '../componentes/CampoTexto.vue';
 import AuthLayout from '../layout/AuthLayout.vue';
+import RecuperarSenhaModal from './RecuperarSenhaModal.vue';
 
 const router = useRouter();
 const { estado } = useEstadoDoAcesso();
@@ -33,8 +34,7 @@ const erroEmail = ref<string | null>(null);
 const erroSenha = ref<string | null>(null);
 const banner = ref<Banner | null>(null);
 const carregando = ref(false);
-// A TASK-086 troca este marcador pelo modal de recuperação de senha.
-const recuperacaoSolicitada = ref(false);
+const recuperacaoAberta = ref(false);
 
 onMounted(() => {
   // Um login novo sempre começa do zero: qualquer desafio anterior é descartado.
@@ -154,7 +154,7 @@ function usarDesbloqueioLocal(): void {
           <button
             type="button"
             class="text-xs font-semibold text-teal-800 hover:text-teal-900 hover:underline transition-all"
-            @click="recuperacaoSolicitada = true"
+            @click="recuperacaoAberta = true"
           >
             Esqueceu a senha?
           </button>
@@ -169,5 +169,6 @@ function usarDesbloqueioLocal(): void {
         </BaseBotao>
       </div>
     </form>
+    <RecuperarSenhaModal :aberto="recuperacaoAberta" :email-inicial="email" @fechar="recuperacaoAberta = false" />
   </AuthLayout>
 </template>

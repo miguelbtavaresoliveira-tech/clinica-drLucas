@@ -354,7 +354,7 @@
 ---
 
 ### TASK-086: Recuperação de senha — modal "Esqueci a senha" e tela "Redefinir senha" (UC-11, UC-12)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 290 testes, vue-tsc e oxlint limpos. Extra: CampoTexto ganhou a prop monoespacado. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-085
 - **Objetivo**: Pedir o e-mail de redefinição (sempre "aceito", RN-12) e concluir com token + nova senha + código MFA (RN-33, D-007).
 - **Arquivos permitidos**: `src/acesso/ui/telas/RecuperarSenhaModal.vue` (novo), `src/acesso/ui/telas/RedefinirSenhaTela.vue` (substituir placeholder), `src/acesso/ui/telas/LoginTela.vue` (editar: abrir o modal), e `.spec.ts` dos dois novos
