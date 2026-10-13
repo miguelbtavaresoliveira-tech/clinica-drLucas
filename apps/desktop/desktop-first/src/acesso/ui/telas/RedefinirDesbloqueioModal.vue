@@ -14,7 +14,7 @@ const props = defineProps<{ aberto: boolean }>();
 const emit = defineEmits<{ fechar: [] }>();
 
 const router = useRouter();
-const { estado } = useEstadoDoAcesso();
+const { estado, sincronizarCom } = useEstadoDoAcesso();
 const fluxo = useFluxoDeLogin();
 
 const PALAVRA = 'DESCARTAR';
@@ -55,7 +55,7 @@ async function descartar(): Promise<void> {
   banner.value = null;
   enviando.value = true;
   try {
-    await redefinirDesbloqueioLocal(PALAVRA);
+    sincronizarCom(await redefinirDesbloqueioLocal(PALAVRA));
     emit('fechar');
     await router.push({ name: 'definir-senha-mestre' });
   } catch (e) {

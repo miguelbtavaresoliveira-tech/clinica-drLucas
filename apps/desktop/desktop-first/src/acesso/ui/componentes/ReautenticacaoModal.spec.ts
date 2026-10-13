@@ -79,6 +79,7 @@ describe('useReautenticacao.comReautenticacao', () => {
     const erro = localErro('REAUTENTICACAO_NECESSARIA');
     const acao = vi.fn().mockRejectedValue(erro);
     const resultado = useReautenticacao().comReautenticacao(acao);
+    void resultado.catch(() => undefined); // a rejeição é verificada abaixo; evita aviso de rejeição não tratada
     await userEvent.type(await screen.findByLabelText(/^Senha mestre/), 'x');
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     await expect(resultado).rejects.toBe(erro);
@@ -90,6 +91,7 @@ describe('useReautenticacao.comReautenticacao', () => {
     const erro = localErro('REAUTENTICACAO_NECESSARIA');
     const acao = vi.fn().mockRejectedValue(erro);
     const resultado = useReautenticacao().comReautenticacao(acao);
+    void resultado.catch(() => undefined);
     await userEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
     await expect(resultado).rejects.toBe(erro);
     expect(acao).toHaveBeenCalledTimes(1);
@@ -99,6 +101,7 @@ describe('useReautenticacao.comReautenticacao', () => {
     render(ReautenticacaoModal);
     const erro = localErro('REAUTENTICACAO_NECESSARIA');
     const resultado = useReautenticacao().comReautenticacao(() => Promise.reject(erro));
+    void resultado.catch(() => undefined);
     await screen.findByRole('dialog');
     await userEvent.keyboard('{Escape}');
     await expect(resultado).rejects.toBe(erro);

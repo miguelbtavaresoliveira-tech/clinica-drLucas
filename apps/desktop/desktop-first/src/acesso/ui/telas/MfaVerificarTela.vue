@@ -2,6 +2,7 @@
 import { PhArrowLeft, PhDeviceMobile } from '@phosphor-icons/vue';
 import { nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useEstadoDoAcesso } from '../../application/estado-do-acesso';
 import { useFluxoDeLogin } from '../../application/fluxo-de-login';
 import type { CodigoInformado, ResumoDoLogin } from '../../application/tipos';
 import { ehCodigoDeRecuperacao, ehCodigoTotp } from '../../application/validacoes';
@@ -17,6 +18,7 @@ import AuthLayout from '../layout/AuthLayout.vue';
 const router = useRouter();
 const fluxo = useFluxoDeLogin();
 const { mostrar } = useToast();
+const { carregar } = useEstadoDoAcesso();
 
 /** Erros em que o servidor já consumiu (ou recusou) o desafio: é preciso recomeçar pelo login. */
 const RECOMECAR_PELO_LOGIN = new Set([
@@ -73,6 +75,12 @@ async function voltarAoLoginComAviso(erro: ErroDoApp): Promise<void> {
 }
 
 async function navegarPara(resumo: ResumoDoLogin): Promise<void> {
+  try {
+    // O login muda o estado (sessão online); consulta o Rust antes que o guard decida a rota.
+    await carregar();
+  } catch {
+    // Sem resposta, o guard segue com o estado que já tem.
+  }
   if (resumo.usouCodigoDeRecuperacao) {
     mostrar(
       `Você usou um código de recuperação. Restam ${String(resumo.codigosRestantes)}. Gere novos em Segurança.`,

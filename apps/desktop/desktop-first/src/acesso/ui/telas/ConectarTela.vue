@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { PhWifiSlash } from '@phosphor-icons/vue';
 import { ref } from 'vue';
+import { useEstadoDoAcesso } from '../../application/estado-do-acesso';
 import { renovarSessao } from '../../infrastructure/comandos-tauri';
 import { mensagemAmigavel, paraErroDoApp } from '../../infrastructure/erros';
 import AlertaBanner from '../componentes/AlertaBanner.vue';
 import BaseBotao from '../componentes/BaseBotao.vue';
 import AuthLayout from '../layout/AuthLayout.vue';
 
+const { sincronizarCom } = useEstadoDoAcesso();
 const banner = ref<{ titulo: string; texto: string } | null>(null);
 const tentando = ref(false);
 
@@ -15,7 +17,7 @@ async function tentarAgora(): Promise<void> {
   tentando.value = true;
   try {
     // Com sucesso o Rust emite o novo estado e o app sai desta tela sozinho.
-    await renovarSessao();
+    sincronizarCom(await renovarSessao());
   } catch (e) {
     banner.value = mensagemAmigavel(paraErroDoApp(e));
   } finally {

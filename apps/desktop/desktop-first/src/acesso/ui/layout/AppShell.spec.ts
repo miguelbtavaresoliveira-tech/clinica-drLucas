@@ -43,7 +43,8 @@ describe('AppShell + InicioTela', () => {
   beforeEach(() => {
     reiniciarEstadoDoAcessoParaTeste();
     sinalDeAtividade.mockReset().mockResolvedValue(null);
-    renovarSessao.mockReset().mockResolvedValue(estado('normal'));
+    // O Rust devolve o estado vigente; o mock faz o mesmo para não mudar a situação do teste.
+    renovarSessao.mockReset().mockImplementation(() => Promise.resolve(useEstadoDoAcesso().estado.value));
     bloquear.mockReset().mockResolvedValue(estado('bloqueado'));
   });
 

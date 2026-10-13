@@ -2,6 +2,7 @@
 import { PhCheckCircle, PhCircle, PhLockKey } from '@phosphor-icons/vue';
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useEstadoDoAcesso } from '../../application/estado-do-acesso';
 import { regrasDaSenhaMestre } from '../../application/validacoes';
 import { configurarDesbloqueio } from '../../infrastructure/comandos-tauri';
 import { mensagemAmigavel, paraErroDoApp } from '../../infrastructure/erros';
@@ -13,6 +14,7 @@ import AuthLayout from '../layout/AuthLayout.vue';
 
 const router = useRouter();
 const { mostrar } = useToast();
+const { sincronizarCom } = useEstadoDoAcesso();
 
 const senha = ref('');
 const confirmacao = ref('');
@@ -37,7 +39,7 @@ async function enviar(): Promise<void> {
   const tentativa = senha.value;
   limparCampos();
   try {
-    await configurarDesbloqueio(tentativa);
+    sincronizarCom(await configurarDesbloqueio(tentativa));
     mostrar('Dados protegidos neste computador.');
     await router.push({ name: 'inicio' });
   } catch (e) {

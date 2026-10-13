@@ -696,7 +696,7 @@
 ---
 
 ### TASK-095: `DispositivoRevogadoTela` e E2E completo com acessibilidade (UL-09, SPEC §10)
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (parte automatizada verificada pelo Claude: 452 testes unitários; E2E no Chromium com 32 testes passando; axe sem violações serious/critical em 8 telas × 3 larguras; 24 capturas em apps/desktop/desktop-first/test-results/telas/ (ignorado pelo git); vue-tsc, oxlint, build e audit limpos. PENDENTE: roteiro manual SPEC §10 com `pnpm tauri dev`, que exige o Rust completo (TASK-060 a 073, `cargo` não instalado). WebKit não abre neste Windows (dependências do sistema): os testes de comportamento rodam só no Chromium aqui. Bundle: chunk inicial 111,9 KB (93,3 KB na TASK-082); soma de JS 311,7 KB; `qrcode` fica em chunk próprio carregado sob demanda. Desvios: mock de Tauri ganhou respostas em sequência e memória do último estado emitido; UI passou a sincronizar o estado com a resposta dos comandos; testTimeout global e asyncUtilTimeout de 5 s.)
 - **Depende de**: TASK-094, TASK-073 (Rust completo — necessário para a verificação manual)
 - **Objetivo**: Tela do computador revogado e a suíte Playwright que percorre o roteiro "Pronto quando" da SPEC §10 com o Tauri simulado, auditoria axe e screenshots.
 - **Arquivos permitidos**: `src/acesso/ui/telas/DispositivoRevogadoTela.vue` (substituir placeholder) e `.spec.ts`; `e2e/primeiro-acesso.spec.ts`, `e2e/desbloqueio.spec.ts`, `e2e/modo-offline-e-revogacao.spec.ts`, `e2e/acessibilidade.spec.ts` (novos)

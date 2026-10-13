@@ -14,7 +14,7 @@ import RedefinirDesbloqueioModal from './RedefinirDesbloqueioModal.vue';
 const ID_SENHA = 'input-senha-mestre';
 
 const router = useRouter();
-const { estado } = useEstadoDoAcesso();
+const { estado, sincronizarCom } = useEstadoDoAcesso();
 
 const senha = ref('');
 const erroSenha = ref<string | null>(null);
@@ -72,7 +72,7 @@ async function entrar(): Promise<void> {
   const tentativa = senha.value;
   senha.value = '';
   try {
-    await desbloquearComSenha(tentativa);
+    sincronizarCom(await desbloquearComSenha(tentativa));
     await router.push({ name: 'inicio' });
   } catch (e) {
     const erro = paraErroDoApp(e);
@@ -94,7 +94,7 @@ async function entrar(): Promise<void> {
 async function entrarComBiometria(): Promise<void> {
   banner.value = null;
   try {
-    await desbloquearComBiometria();
+    sincronizarCom(await desbloquearComBiometria());
     await router.push({ name: 'inicio' });
   } catch {
     // Erro ou cancelamento: a senha mestre sempre é a alternativa (RN-25).

@@ -12,7 +12,7 @@ export type ErroDeSessao = 'SESSAO_EXPIRADA' | 'SEM_CONEXAO' | null;
  * Revogação do dispositivo não é tratada aqui: o Rust emite o estado `revogado`.
  */
 export function useSessaoOnline(ativo?: () => boolean) {
-  const { estado } = useEstadoDoAcesso();
+  const { estado, sincronizarCom } = useEstadoDoAcesso();
   const estaAtivo = ativo ?? (() => estado.value?.situacao === 'normal' || estado.value?.situacao === 'somente_leitura');
   const ultimoErro = ref<ErroDeSessao>(null);
   let intervalo: ReturnType<typeof setInterval> | null = null;
@@ -20,7 +20,7 @@ export function useSessaoOnline(ativo?: () => boolean) {
 
   async function renovar(): Promise<void> {
     try {
-      await renovarSessao();
+      sincronizarCom(await renovarSessao());
       ultimoErro.value = null;
     } catch (e) {
       const codigo = paraErroDoApp(e).codigo;

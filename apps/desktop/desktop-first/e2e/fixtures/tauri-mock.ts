@@ -13,7 +13,7 @@ export interface FormaDeErroSerializavel {
   tentarApos?: string;
 }
 
-export type RespostaDeComando = unknown | { erro: FormaDeErroSerializavel };
+export type RespostaDeComando = unknown | { erro: FormaDeErroSerializavel } | { sequencia: RespostaDeComando[] };
 
 export type CenarioDeComandos = Record<string, RespostaDeComando>;
 
@@ -35,6 +35,9 @@ export async function instalarMockTauri(page: Page, cenario: CenarioDeComandos):
     ).__TAURI_EVENT_PLUGIN_INTERNALS__ ?? {};
 
     const callbacks = new Map<number, (dados: unknown) => void>();
+    // O Rust é a fonte da verdade do estado: depois de um evento, `estado_do_acesso` devolve o último emitido.
+    let estadoAtual: unknown;
+    const posicaoNaSequencia = new Map<string, number>();
     const escutadoresPorEvento = new Map<string, number[]>();
 
     function registrarCallback(callback: (dados: unknown) => void): number {
@@ -74,7 +77,15 @@ export async function instalarMockTauri(page: Page, cenario: CenarioDeComandos):
         return null;
       }
 
-      const resposta = cenarioInjetado[cmd];
+      if (cmd === 'estado_do_acesso' && estadoAtual !== undefined) return estadoAtual;
+
+      let resposta = cenarioInjetado[cmd];
+      if (typeof resposta === 'object' && resposta !== null && 'sequencia' in resposta) {
+        const fila = (resposta as { sequencia: unknown[] }).sequencia;
+        const posicao = posicaoNaSequencia.get(cmd) ?? 0;
+        posicaoNaSequencia.set(cmd, posicao + 1);
+        resposta = fila[Math.min(posicao, fila.length - 1)];
+      }
       if (resposta !== undefined && typeof resposta === 'object' && resposta !== null && 'erro' in resposta) {
         throw (resposta as { erro: unknown }).erro;
       }
@@ -93,6 +104,7 @@ export async function instalarMockTauri(page: Page, cenario: CenarioDeComandos):
     ).__TAURI_EVENT_PLUGIN_INTERNALS__ = eventInternals;
 
     window.__emitirEventoDeTeste = (evento: string, payload: unknown) => {
+      if (evento === 'acesso://estado-alterado') estadoAtual = payload;
       const lista = escutadoresPorEvento.get(evento) ?? [];
       for (const id of lista) {
         callbacks.get(id)?.({ event: evento, payload, id });
