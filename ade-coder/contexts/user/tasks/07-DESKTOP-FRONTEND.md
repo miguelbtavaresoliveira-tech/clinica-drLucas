@@ -620,7 +620,7 @@
 ---
 
 ### TASK-093: `DispositivosTela` — listar e revogar (UC-08, UC-09)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 424 testes, vue-tsc e oxlint limpos. Screenshots na TASK-095)
 - **Depende de**: TASK-092
 - **Objetivo**: Mostrar os computadores da conta e revogar um deles com reautenticação local + código MFA (RN-22, RN-29, D-008).
 - **Arquivos permitidos**: `src/acesso/ui/telas/DispositivosTela.vue` (substituir placeholder), `src/acesso/ui/telas/RevogarDispositivoModal.vue` (novo), `.spec.ts` dos dois
