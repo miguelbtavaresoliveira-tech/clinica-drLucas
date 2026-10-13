@@ -316,7 +316,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-064: `banco_local.rs` — SQLCipher com a DEK
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (6 novos) validados no WSL2)
 - **Depende de**: TASK-061
 - **Objetivo**: Abrir/fechar o banco local cifrado (porta `BancoLocal`) e criar as tabelas do contexto (`estado_de_acesso`, `auditoria_local`).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/banco_local.rs` (novo), `mod.rs` (só `pub mod banco_local;`)
