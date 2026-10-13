@@ -7,5 +7,9 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    setupFiles: ['./test/carregar-env.ts'],
+    globalSetup: ['./test/identidade-e-acesso/int/global-setup.ts'],
+    fileParallelism: false,
+    testTimeout: 30_000,
   },
 });
