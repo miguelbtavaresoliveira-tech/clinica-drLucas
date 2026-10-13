@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "no-console": ["error", { "allow": ["warn", "error"] }]
+  },
+  "env": { "browser": true },
+  "ignorePatterns": ["src/vite-env.d.ts"]
+}

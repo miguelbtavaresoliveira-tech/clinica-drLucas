@@ -55,7 +55,7 @@
 ---
 
 ### TASK-080: Tema (tokens do Figma), roteador e casca do app
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando Revisão]` (worker2, commit 71c1725; aviso do vite sobre import sem extensão em vitest.config.ts, da TASK-005)
 - **Depende de**: TASK-005, TASK-006
 - **Objetivo**: Substituir o template "Tauri + Vue" pela base do app: tokens de design do Figma em Tailwind v4, fontes locais, roteador com as rotas da tabela e `App.vue` mínimo.
 - **Arquivos permitidos**: `src/styles/tema.css` (novo), `src/main.ts`, `src/App.vue`, `src/router/index.ts` (novo), `src/router/rotas.spec.ts` (novo), `src/acesso/ui/telas/*.vue` **somente como placeholders** de uma linha (`<template><h1>Nome da tela</h1></template>`) para cada componente da tabela de rotas; remover `src/assets/vue.svg`, `public/tauri.svg`, `public/vite.svg`
@@ -107,7 +107,7 @@
 ---
 
 ### TASK-081: Infraestrutura — comandos Tauri tipados, erros e mock de E2E
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando Revisão]` (worker2, commit a754c25; @tauri-apps/api 2.12.3; e2e/fixtures/tauri-mock.ts reimplementa o protocolo IPC em vez de reusar @tauri-apps/api/mocks, que só funciona em jsdom — ver comentário no arquivo)
 - **Depende de**: TASK-080
 - **Objetivo**: Um único ponto de acesso ao Rust, tipado conforme o contrato do arquivo 06, com erros normalizados e mensagens amigáveis.
 - **Arquivos permitidos**: `src/acesso/infrastructure/comandos-tauri.ts`, `src/acesso/infrastructure/api-identidade.ts`, `src/acesso/infrastructure/erros.ts`, `src/acesso/application/tipos.ts`, seus `.spec.ts`; `e2e/fixtures/tauri-mock.ts`, `e2e/fixtures/estados.ts` (novos)

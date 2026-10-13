@@ -360,7 +360,7 @@
 ---
 
 ### TASK-005: Workspace do desktop, dependências e ferramentas de teste (Vue)
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando Revisão]` (worker2, commit c005c8e; desvio: .oxlintrc.json ignora src/vite-env.d.ts, scaffold com any; scripts rodados sem o `--` extra)
 - **Depende de**: TASK-001
 - **Objetivo**: Corrigir o workspace pnpm de `apps/desktop` (hoje ele não inclui `desktop-first`), instalar Tailwind v4, ícones, fontes, roteador, QR code e o ferramental de lint/testes (D-003).
 - **Arquivos permitidos**:
@@ -435,7 +435,7 @@
 ---
 
 ### TASK-006: Endurecer configuração do Tauri (identificador, janela, CSP)
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando Revisão]` (worker2, commit b220000)
 - **Depende de**: TASK-005
 - **Objetivo**: Trocar o identificador de template, definir janela adequada ao consultório e ativar uma CSP restritiva (hoje `"csp": null`, o que permite carregar qualquer script remoto).
 - **Arquivos permitidos**: `apps/desktop/desktop-first/src-tauri/tauri.conf.json`, `apps/desktop/desktop-first/index.html`
