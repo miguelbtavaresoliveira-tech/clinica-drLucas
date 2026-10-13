@@ -743,7 +743,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-072: Spike de biometria no desktop (DT-10) — somente documento
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (documento com 7 seções e recomendação B; falta executar a seção 4 em macOS assinado e Windows com Hello, pois nenhum dos dois pôde ser testado aqui)
 - **Depende de**: TASK-063
 - **Objetivo**: Decidir com evidência se a biometria (Touch ID no macOS, Windows Hello no Windows) é viável agora ou se fica o plano B (só senha mestre). **Nenhum código de produção.**
 - **Arquivos permitidos**: `docs/spikes/biometria-desktop.md` (novo). Código experimental só fora do repositório (ou numa branch descartável não enviada).
