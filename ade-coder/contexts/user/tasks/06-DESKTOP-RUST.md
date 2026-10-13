@@ -216,7 +216,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-062: `armazenamento.rs` — `acesso_local.json` e política de atraso
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (10 novos) validados no WSL2)
 - **Depende de**: TASK-061
 - **Objetivo**: Persistir fora do banco cifrado o que é preciso antes de desbloquear, inclusive o contador de falhas que **sobrevive a reinício** (RN-27).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/armazenamento.rs` (novo), `mod.rs` (só `pub mod armazenamento;`)
