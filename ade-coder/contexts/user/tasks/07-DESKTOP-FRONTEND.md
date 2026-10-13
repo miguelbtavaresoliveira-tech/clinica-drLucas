@@ -224,7 +224,7 @@
 ---
 
 ### TASK-083: Componentes base acessíveis
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 232 testes, vue-tsc, oxlint e build limpos. Extra: CampoCodigo trata o evento de colar (o maxlength=6 do navegador cortaria '123 456' antes da limpeza); foco inicial adiado para depois do próximo tick)
 - **Depende de**: TASK-080
 - **Objetivo**: Componentes reutilizáveis com o visual do Figma e acessibilidade AA.
 - **Arquivos permitidos** (novos, em `src/acesso/ui/`): `componentes/BaseBotao.vue`, `CampoTexto.vue`, `CampoSenha.vue`, `CampoCodigo.vue`, `AlertaBanner.vue`, `ModalDialogo.vue`, `NotificacaoToast.vue`, `AvatarIniciais.vue`, `composables/useToast.ts`, um `.spec.ts` por componente; `src/App.vue` (editar: incluir `<NotificacaoToast />`)
