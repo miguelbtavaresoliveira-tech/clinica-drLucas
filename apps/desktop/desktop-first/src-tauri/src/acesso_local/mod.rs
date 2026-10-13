@@ -6,6 +6,7 @@ pub mod comandos;
 pub mod cripto;
 pub mod erros;
 pub mod estado;
+pub mod inatividade;
 pub mod modo_offline;
 pub mod relogio;
 pub mod servico;

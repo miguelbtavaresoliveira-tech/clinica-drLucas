@@ -1,6 +1,7 @@
 //! `ServicoDeAcessoLocal`: configurar, desbloquear com senha e bloquear (UL-01, UL-02, UL-04).
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration as DuracaoStd, Instant};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -32,6 +33,7 @@ pub struct ServicoDeAcessoLocal {
     banco: Option<BancoLocal>,
     situacao_desbloqueada: Situacao,
     reautenticado_em: Option<DateTime<Utc>>,
+    ultima_atividade: Instant,
     sessao_online: bool,
     usuario: Option<UsuarioResumo>,
 }
@@ -52,6 +54,7 @@ impl ServicoDeAcessoLocal {
             banco: None,
             situacao_desbloqueada: Situacao::Normal,
             reautenticado_em: None,
+            ultima_atividade: Instant::now(),
             sessao_online: false,
             usuario: None,
         }
@@ -121,6 +124,7 @@ impl ServicoDeAcessoLocal {
         self.dek = Some(dek);
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
+        self.ultima_atividade = Instant::now();
         self.reavaliar_modo()
     }
 
@@ -193,6 +197,7 @@ impl ServicoDeAcessoLocal {
         self.dek = Some(dek);
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
+        self.ultima_atividade = Instant::now();
         self.reavaliar_modo()
     }
 
@@ -241,7 +246,11 @@ impl ServicoDeAcessoLocal {
     }
 
     /// UL-04: descarta banco e DEK da memória. Idempotente. Não apaga nenhum arquivo.
-    pub fn bloquear(&mut self, _motivo: MotivoDeBloqueio) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+    pub fn bloquear(&mut self, motivo: MotivoDeBloqueio) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        if self.esta_desbloqueado() {
+            // Melhor esforço: a falha em registrar o evento nunca impede o bloqueio.
+            let _ = self.registrar_bloqueio(motivo);
+        }
         if let Some(banco) = self.banco.take() {
             // Mesmo que o fechamento falhe, a conexão é descartada e a DEK sai da memória.
             let _ = banco.fechar();
@@ -249,6 +258,32 @@ impl ServicoDeAcessoLocal {
         self.dek = None;
         self.reautenticado_em = None;
         self.estado()
+    }
+
+    fn registrar_bloqueio(&self, motivo: MotivoDeBloqueio) -> Result<(), ErroDeAcesso> {
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        persistido.auditoria_pendente.push(RegistroPendente {
+            tipo: "app-bloqueado".to_owned(),
+            ocorrido_em: self.relogio.agora(),
+            detalhe: [("motivo".to_owned(), serde_json::json!(motivo.como_texto()))].into(),
+        });
+        armazenamento::salvar(&self.diretorio, &persistido)
+    }
+
+    /// Sinal de atividade do usuário. Sem efeito com o app bloqueado: nunca desbloqueia.
+    pub fn registrar_atividade(&mut self) {
+        if self.esta_desbloqueado() {
+            self.ultima_atividade = Instant::now();
+        }
+    }
+
+    pub fn ociosidade(&self) -> DuracaoStd {
+        self.ultima_atividade.elapsed()
+    }
+
+    pub fn limite_inatividade(&self) -> DuracaoStd {
+        let minutos = u64::try_from(self.politica().inatividade_min.max(1)).unwrap_or(1);
+        DuracaoStd::from_secs(minutos.saturating_mul(60))
     }
 
     pub fn esta_desbloqueado(&self) -> bool {
@@ -697,6 +732,52 @@ mod testes {
         );
         assert_eq!(servico.politica(), PoliticaLocal::default());
         assert!(servico.garantir_escrita().is_ok());
+    }
+
+    #[test]
+    fn atividade_com_o_app_bloqueado_nao_desbloqueia() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        servico.registrar_atividade();
+        assert!(!servico.esta_desbloqueado());
+        assert_eq!(servico.estado().unwrap().situacao, Situacao::Bloqueado);
+    }
+
+    #[test]
+    fn limite_de_inatividade_vem_da_politica() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        assert_eq!(servico.limite_inatividade(), DuracaoStd::from_secs(600));
+        let politica = PoliticaLocal {
+            inatividade_min: 1,
+            ..PoliticaLocal::default()
+        };
+        servico
+            .banco()
+            .unwrap()
+            .gravar_valor("politica", &serde_json::to_string(&politica).unwrap())
+            .unwrap();
+        assert_eq!(servico.limite_inatividade(), DuracaoStd::from_secs(60));
+    }
+
+    #[test]
+    fn bloquear_registra_o_motivo_so_quando_estava_desbloqueado() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Inatividade).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        let bloqueios: Vec<_> = disco
+            .auditoria_pendente
+            .iter()
+            .filter(|r| r.tipo == "app-bloqueado")
+            .collect();
+        assert_eq!(bloqueios.len(), 1);
+        assert_eq!(bloqueios[0].detalhe["motivo"], "inatividade");
     }
 
     #[test]

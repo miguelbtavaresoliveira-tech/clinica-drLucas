@@ -41,6 +41,17 @@ pub enum MotivoDeBloqueio {
     Revogacao,
 }
 
+impl MotivoDeBloqueio {
+    pub fn como_texto(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Inatividade => "inatividade",
+            Self::Suspensao => "suspensao",
+            Self::Revogacao => "revogacao",
+        }
+    }
+}
+
 #[cfg(test)]
 mod testes {
     use super::*;

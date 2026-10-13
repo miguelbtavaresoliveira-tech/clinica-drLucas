@@ -93,3 +93,13 @@ pub async fn bloquear(
     avisar(&app, &novo);
     Ok(novo)
 }
+
+/// Sinal de atividade enviado pela interface. Sem efeito se o app estiver bloqueado.
+#[tauri::command]
+pub async fn sinal_de_atividade(estado: State<'_, EstadoTauri>) -> Result<(), ErroDeAcesso> {
+    executar(&estado, |servico| {
+        servico.registrar_atividade();
+        Ok(())
+    })
+    .await
+}

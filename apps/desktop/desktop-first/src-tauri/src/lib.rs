@@ -7,6 +7,7 @@ pub mod acesso_local;
 use acesso_local::cofre_so::KeyringCofre;
 use acesso_local::comandos::{self, EstadoTauri};
 use acesso_local::cripto::PARAMETROS_MINIMOS;
+use acesso_local::inatividade::iniciar_monitor;
 use acesso_local::relogio::RelogioDoSistema;
 use acesso_local::servico::ServicoDeAcessoLocal;
 
@@ -23,9 +24,11 @@ pub fn run() {
                 Arc::new(RelogioDoSistema),
                 PARAMETROS_MINIMOS,
             );
+            let acesso = Arc::new(Mutex::new(servico));
             app.manage(EstadoTauri {
-                acesso: Arc::new(Mutex::new(servico)),
+                acesso: Arc::clone(&acesso),
             });
+            iniciar_monitor(app.handle().clone(), acesso);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -33,6 +36,7 @@ pub fn run() {
             comandos::configurar_desbloqueio,
             comandos::desbloquear_com_senha,
             comandos::bloquear,
+            comandos::sinal_de_atividade,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

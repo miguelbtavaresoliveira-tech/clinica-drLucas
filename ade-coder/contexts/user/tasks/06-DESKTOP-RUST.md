@@ -494,7 +494,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-067: Bloqueio por inatividade e suspensão (RN-26, DT-11)
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (fmt/clippy/test (77 no módulo) e cargo build OK no WSL2; falta o teste manual com pnpm tauri dev e POLITICA_INATIVIDADE_MIN=1)
 - **Depende de**: TASK-066
 - **Objetivo**: Timer de inatividade **no Rust**; o Vue só envia sinais de atividade. Bloquear também ao suspender o computador e reavaliar o modo offline a cada hora.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/inatividade.rs` (novo); `servico.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)
