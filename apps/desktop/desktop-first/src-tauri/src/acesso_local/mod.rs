@@ -5,6 +5,7 @@ pub mod banco_local;
 pub mod cofre_so;
 pub mod comandos;
 pub mod cripto;
+pub mod envio_de_auditoria;
 pub mod erros;
 pub mod estado;
 pub mod inatividade;

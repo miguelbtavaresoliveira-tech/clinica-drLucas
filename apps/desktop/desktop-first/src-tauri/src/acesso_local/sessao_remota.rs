@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use url::Url;
 use zeroize::Zeroizing;
 
-use super::auditoria;
+use super::auditoria::{self, RegistroLocal};
 use super::cofre_so::{CHAVE_REFRESH, CofreDeChavesDoSo};
 use super::erros::ErroDeAcesso;
 use super::estado::{EstadoDoAcesso, UsuarioResumo};
@@ -498,6 +498,30 @@ impl SessaoRemota {
             Ok(())
         })?;
 
+        self.enviar_autenticada(acesso, metodo, caminho, corpo)
+            .await
+    }
+
+    /// Envia um lote de auditoria (uso interno: não passa pela lista permitida do JavaScript).
+    pub async fn enviar_lote(
+        &mut self,
+        acesso: &Mutex<ServicoDeAcessoLocal>,
+        registros: &[RegistroLocal],
+    ) -> Result<(), ErroDeAcesso> {
+        let corpo = json!({ "registros": registros });
+        self.enviar_autenticada(acesso, Method::POST, "/auditoria/lote", Some(&corpo))
+            .await
+            .map(|_| ())
+    }
+
+    /// Garante um access válido, envia e, num 401, renova uma única vez e repete.
+    async fn enviar_autenticada(
+        &mut self,
+        acesso: &Mutex<ServicoDeAcessoLocal>,
+        metodo: Method,
+        caminho: &str,
+        corpo: Option<&Value>,
+    ) -> Result<Value, ErroDeAcesso> {
         if !self.access_valido() {
             self.renovar_interno(acesso).await?;
         }
@@ -516,6 +540,14 @@ impl SessaoRemota {
             return corpo_como_json(status, &bytes)
                 .map_err(|erro| self.tratar_revogacao(acesso, erro));
         }
+    }
+
+    /// Apenas para testes de outros módulos: simula um access já obtido.
+    #[cfg(test)]
+    pub fn com_access_de_teste(mut self, access: &str, expira_em: DateTime<Utc>) -> Self {
+        self.access = Some(Zeroizing::new(access.to_owned()));
+        self.access_expira_em = Some(expira_em);
+        self
     }
 }
 

@@ -7,6 +7,7 @@ use tauri::{AppHandle, Emitter, State};
 use zeroize::Zeroizing;
 
 use super::cripto;
+use super::envio_de_auditoria::{enviar_pendentes, renovar_e_enviar};
 use super::erros::ErroDeAcesso;
 use super::estado::{EstadoDoAcesso, MotivoDeBloqueio};
 use super::servico::ServicoDeAcessoLocal;
@@ -159,12 +160,15 @@ pub async fn api_concluir_login(
     desafio: String,
     codigo: Value,
 ) -> Result<ResumoDoLogin, ErroDeAcesso> {
-    let resultado = estado
-        .sessao
-        .lock()
-        .await
+    let mut sessao = estado.sessao.lock().await;
+    let resultado = sessao
         .concluir_login(&estado.acesso, &desafio, &codigo)
         .await;
+    if resultado.is_ok() {
+        // O erro do envio não derruba o login; o que não foi enviado sai na próxima renovação.
+        let _ = enviar_pendentes(&mut sessao, &estado.acesso).await;
+    }
+    drop(sessao);
     emitir_estado_atual(&app, &estado).await;
     resultado
 }
@@ -174,7 +178,10 @@ pub async fn api_renovar_sessao(
     app: AppHandle,
     estado: State<'_, EstadoTauri>,
 ) -> Result<EstadoDoAcesso, ErroDeAcesso> {
-    let resultado = estado.sessao.lock().await.renovar(&estado.acesso).await;
+    let resultado = {
+        let mut sessao = estado.sessao.lock().await;
+        renovar_e_enviar(&mut sessao, &estado.acesso).await
+    };
     emitir_estado_atual(&app, &estado).await;
     resultado
 }
@@ -238,4 +245,22 @@ pub async fn api_requisicao_autenticada(
         emitir_estado_atual(&app, &estado).await;
     }
     resultado
+}
+
+#[derive(serde::Serialize)]
+pub struct ResumoDoEnvio {
+    pub enviados: u64,
+}
+
+#[tauri::command]
+pub async fn enviar_auditoria_pendente(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+) -> Result<ResumoDoEnvio, ErroDeAcesso> {
+    let resultado = {
+        let mut sessao = estado.sessao.lock().await;
+        enviar_pendentes(&mut sessao, &estado.acesso).await
+    };
+    emitir_estado_atual(&app, &estado).await;
+    resultado.map(|enviados| ResumoDoEnvio { enviados })
 }

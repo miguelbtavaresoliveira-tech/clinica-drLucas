@@ -469,7 +469,7 @@ impl ServicoDeAcessoLocal {
     }
 
     /// Mantém no arquivo o total de eventos ainda não enviados, visível mesmo com o app bloqueado.
-    fn atualizar_eventos_pendentes(&self) -> Result<(), ErroDeAcesso> {
+    pub fn atualizar_eventos_pendentes(&self) -> Result<(), ErroDeAcesso> {
         let banco = self.banco.as_ref().ok_or(ErroDeAcesso::Bloqueado)?;
         let mut persistido = armazenamento::ler(&self.diretorio)?;
         let no_arquivo = u64::try_from(persistido.auditoria_pendente.len()).unwrap_or(0);

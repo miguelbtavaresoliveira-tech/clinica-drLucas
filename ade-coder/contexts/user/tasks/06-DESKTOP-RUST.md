@@ -667,7 +667,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-070: Envio da auditoria local com prioridade na reconexão (RN-39)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (123 no módulo, 7 novos com mockito) validados no WSL2)
 - **Depende de**: TASK-069
 - **Objetivo**: Enviar os registros locais pendentes ao `POST /auditoria/lote` logo após cada renovação/login bem-sucedido.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/envio_de_auditoria.rs` (novo); `sessao_remota.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)
