@@ -5,3 +5,5 @@ pub mod cofre_so;
 pub mod comandos;
 pub mod cripto;
 pub mod erros;
+pub mod estado;
+pub mod servico;

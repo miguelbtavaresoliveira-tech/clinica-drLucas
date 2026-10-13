@@ -370,7 +370,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-065: `ServicoDeAcessoLocal` — configurar, desbloquear com senha, bloquear, estado (UL-01, UL-02, UL-04)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (53 no módulo) e cargo build validados no WSL2)
 - **Depende de**: TASK-062, TASK-063, TASK-064
 - **Objetivo**: O app sempre abre bloqueado (RN-23); a senha mestre é definida no primeiro acesso e nunca vai ao servidor (RN-24); falhas com atraso persistido e login completo após 10 (RN-27); nunca apagar dados por falha (RN-28).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/estado.rs`, `src-tauri/src/acesso_local/servico.rs` (novos); `comandos.rs`, `lib.rs`, `mod.rs` (editar)
