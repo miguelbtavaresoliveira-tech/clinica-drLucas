@@ -1,549 +1,382 @@
-# Documento de Início de Projeto — Sistema de Gestão para Fisioterapeuta
+# Modelo de Domínio (DDD) — Estruturação dos Contextos
 
-  
-
-> **Versão 8 — PRD inicial fechado, após revisão de lacunas.** As regras de negócio centrais estão definidas; os itens que restam (seção 12) são confirmações pontuais ou decisões técnicas que podem ser concluídas em paralelo, sem travar o início do desenvolvimento.
-
-  
+> Derivado do PRD v8. Organiza as regras de negócio em **bounded contexts**, agregados, eventos de domínio e relações entre contextos. Nomes em português, seguindo a linguagem do consultório.
 
 ---
 
-  
+## 1. Visão estratégica
 
-## 1. Visão Geral
+### 1.1 Classificação dos subdomínios
 
-  
-
-Sistema de gestão para o consultório do Dr. Lucas Damasceno (fisioterapiaevo.com.br), com foco em **dor crônica e tratamento de coluna**. Hoje o atendimento é domiciliar, migrando aos poucos (\~2 meses) para clínica própria (endereço único). Volume médio: \~20 atendimentos/mês (fora avaliações, quiropraxia e liberação). Captação de pacientes: Google, WhatsApp (canal principal de agendamento e dúvidas) e Instagram.
-
-  
-
-**Modelo de acesso:** usuário único pelos próximos 2 anos; quando houver mais usuários, eles terão **papéis diferentes** entre si.
-
-  
-
-**Fontes já incorporadas neste documento:** ficha de avaliação em papel (Dr. Lucas Damasceno), termo de consentimento de uso de imagem, três modelos de contrato de prestação de serviço fisioterapêutico, e a taxonomia clínica de tipos de dor (PhD Léo Avila).
-
-  
-
----
-
-  
-
-## 2. Tabela de Preços (base de hoje)
-
-  
-
-| Item | Valor | Observação |
-
+| Contexto | Tipo | Por quê |
 | --- | --- | --- |
+| **Atendimento Clínico** | **Core** | É o diferencial do sistema: avaliação, taxonomia de dor, fluxo de evolução, protocolo de sessão, tudo funcionando offline |
+| **Agenda** | **Core** | Concentra as regras operacionais mais delicadas: horário fixo, bloqueio de duplicidade, ausência, janela de reagendamento |
+| Planos e Cobrança | Suporte, com regras próprias | Sinal, multa, modalidades e travamento de valor são específicos do negócio. Modele com cuidado, mas sem gateway por enquanto |
+| Pacientes | Suporte | Cadastro e identidade (CPF) |
+| Captação | Suporte | Leads e repescagem |
+| Gestão Financeira | Suporte | Despesas, investimentos, fechamentos e relatórios |
+| Recibos e Convênios | Suporte | Controle de recibos pendentes/enviados |
+| Contratos e Consentimento | Suporte (crítico para LGPD) | Contrato clínica e bloqueio de mídia |
+| Equipamentos | Suporte | Compra e manutenção de aparelhos |
+| Comunicação | Suporte | Mensagens automáticas e lembretes; o canal (WhatsApp) é genérico |
+| **Identidade e Acesso** | **Genérico**, modelado como contexto próprio | Login, MFA, dispositivos e papéis. Use bibliotecas consolidadas atrás de uma porta `Autenticador`, para poder trocar a implementação |
+| Sincronização, Auditoria, Arquivos, Geração de Documentos | **Genérico** | Use soluções prontas sempre que possível |
 
-| Tratamento (valor único) | Valor **base**, referência R$ 3.000 | Cobre do primeiro dia até a **alta**, **sem limite de sessões**; valor editável antes de ser enviado/registrado no sistema, depois trava |
+### 1.2 Recomendação de arquitetura: monólito modular
 
-| Pacote de sessões | Definido por paciente (exemplo: 2 atendimentos por semana = R$ 4.900) | Frequência semanal, número de sessões e valor definidos caso a caso; valor editável antes de ser enviado/registrado no sistema, depois trava |
+Cada contexto vira um **módulo** dentro de um único aplicativo, não um serviço separado. Motivos: usuário único, app desktop offline-first, equipe pequena. Os módulos conversam por **eventos de domínio em memória** e por interfaces explícitas, nunca acessando as tabelas uns dos outros. Se um dia algum contexto precisar virar serviço, a fronteira já está pronta.
 
-| Avaliação | R$ 330 (valor fixo) | Único item com valor realmente fixo. Inclui um **pré-atendimento curto**, com condutas básicas; o atendimento completo depende da análise feita na avaliação. Exige **sinal de R$ 100** (ver seção 5) |
-
-| Sessão avulsa — liberação/quiropraxia | R$ 200 |  |
-
-| Atendimento avulso comum | R$ 130 | Por sessão |
-
-| Convênio Doctor Prime — clínica | R$ 50 | Por sessão |
-
-| Convênio Doctor Prime — domicílio | R$ 80 | Por sessão |
-
-  
-
-**Regra de valor:** cada atendimento tem um **valor base editável antes de acontecer** (no caso de pacote e tratamento, editável antes de ser enviado/registrado no sistema). Depois de **executado**, o valor fica travado. A avaliação é a única exceção com valor já fixo (R$ 330). Vale para todos os demais tipos de cobrança.
-
-  
-
-**Convênio = sempre avulso.** Nenhum atendimento de convênio entra em lógica de pacote ou tratamento.
-
-  
-
-**Pacote:** todas as sessões são pagas de uma vez, no fechamento do pacote. Campos mínimos: frequência semanal, número total de sessões, dias definidos e valor total. O pacote tem **zero flexibilidade**: sem reagendamento de sessão, sem reembolso e sem alteração de valor depois de fechado.
-
-  
+Regra de ouro para o offline: **o agregado é a unidade de consistência, de sincronização e de conflito.** A tela de "duas versões lado a lado" compara versões do mesmo agregado (ex.: uma Avaliação, um Fluxo de Evolução).
 
 ---
 
-  
-
-## 3. Mensageria e Automações
-
-  
-
-| Automação | Gatilho |
-
-| --- | --- |
-
-| Confirmação de consulta | 16h antes do horário |
-
-| Lembrete de pagamento | 3 dias antes do vencimento (mensal/quinzenal) |
-
-| Mensagem pós-consulta (quiropraxia, liberação, avaliação) | 24h depois do atendimento, enviada automaticamente |
-
-| Mensagem de repescagem | 48h após a avaliação, enviada automaticamente |
-
-  
-
-**"Postagem" (redes sociais):** por enquanto só um campo de observação livre.
-
-  
-
-**IA lendo WhatsApp automaticamente:** mantido como ideia de fase futura (fora do MVP) — ver riscos já discutidos (API oficial exigida, risco de banimento, questão de LGPD no processamento automático de dado clínico).
-
-  
-
----
-
-  
-
-## 4. Regras Clínicas e Fluxo de Evolução
-
-  
-
-- **Pré-requisito obrigatório:** quiropraxia não pode ser realizada sem avaliação prévia registrada. **Liberação miofascial não exige avaliação prévia.**
-
-- **Identificador do paciente:** o **CPF é identificador único** — o sistema não permite cadastro duplicado.
-
-- **Histórico de alterações:** fichas clínicas (avaliação, anamnese, evolução) mantêm histórico completo de alterações (o que mudou, quando e por quem), sem sobrescrever o registro anterior.
-
-- **Amplitude de movimento:** registrada como **Livre** ou **Limitada**; quando limitada, informa-se o **grau**. Se a função está 100% (livre), o grau não precisa ser preenchido.
-
-- **Ficha de avaliação:** dados pessoais, dados clínicos, anamnese (histórico de doenças, cirurgias e lesões anteriores, etilismo, tabagismo, sono, alimentação, estresse, vida social, tipo de dor e o que piora/melhora), queixa principal, exame físico, mapa corporal (dermátomos C2–S5, frente e costas) e testes especiais, observações.
-
-- **Fotos:** vinculadas à sessão específica em que foram tiradas.
-
-- **Alta:** existe o conceito formal, mas a maioria dos pacientes sai do tratamento sem alta formal (status de "auto-alta"/abandono, distinto da alta dada pelo fisioterapeuta; a auto-alta é **marcada manualmente** pelo usuário).
-
-  
-
-### 4.1 Taxonomia do tipo de dor (campo em ramificações)
-
-  
-
-Baseado na classificação clínica de referência, o campo "tipo de dor" da anamnese deve funcionar como uma série de escolhas em cascata, não um campo livre:
-
-  
-
-1. **Natureza:** Sintoma (dor aguda) ou Doença (dor crônica)
-
-2. **Categoria** *(só para dor crônica)*: Primária ou Secundária
-
-   - Primária → Generalizada, SDRC, Cabeça ou face, Visceral, Musculoesquelética
-
-   - Secundária → Neuropática, Pós-trauma ou cirurgia, Pós-câncer, Cabeça ou face, Visceral, Musculoesquelética
-
-3. **Mecanismo neurofisiológico (gênese da dor):** Nociplástica (Aumentada / Verdadeira), Neuropática (Central / Periférica), Nociceptiva (QMC inflamatória / QMC não inflamatória / Mecânica), ou Origem não detectável
-
-4. **Padrão temporal:** Contínua, Recorrente, ou Contínua + flare-up
-
-5. **Região/sistema acometido:** Sistema somático, Sistema visceral, Cabeça ou face, Tronco, Membros superiores, Membros inferiores
-
-  
-
-O resultado final da combinação equivale aos 8 tipos de dor de referência (ex.: Química inflamatória, Química não inflamatória/isquêmica, Mecânica/manutenção tissular, Neuropática periférica, Neuropática central, Nociplástica verdadeira, Nociplástica aumentada, Origem não detectável) — cada um associável a uma ou mais regiões marcadas no mapa corporal.
-
-  
-
-### 4.2 Fluxo de Evolução (treinos)
-
-  
-
-Renomeado de "plano de treino" para **Fluxo de Evolução**. Estrutura:
-
-  
-
-- **Fluxo de Evolução** do paciente contém vários **Tratamentos** (Tratamento 1, Tratamento 2, Tratamento 3...).
-
-- Cada **Tratamento** contém um ou mais **Exercícios**, cada um podendo combinar:
-
-  - **Choque** (ex.: 30 minutos de determinado estímulo/aparelho)
-
-  - **Exercício de movimentação** (ex.: flexão lateral de ombro)
-
-    - Número de repetições (ex.: 10)
-
-    - Número de séries
-
-    - Tempo de intervalo de descanso entre séries
-
-    - Localização do músculo trabalhado
-
-- Um exercício pode ter choque e movimentação combinados no mesmo registro, ou apenas um dos dois.
-
-- O **choque** de cada exercício é **vinculado a um Equipamento** cadastrado (rastreabilidade de uso do aparelho).
-
-  
-
----
-
-  
-
-## 5. Agenda
-
-  
-
-- **Agendamento fixo por padrão**, mudando só por imprevisto do paciente ou do fisioterapeuta; atendimentos esporádicos são mais flexíveis conforme demanda.
-
-- **Duração por tipo:** avaliação com tempo base configurável; sessão avulsa comum/convênio de reembolso = 40 min; convênio Doctor Prime = 30 min.
-
-- **Bloqueio de horário duplicado:** o sistema não permite dois pacientes no mesmo horário; ao tentar, exibe aviso de que já existe um paciente agendado naquele horário.
-
-- **Ausência avisada de consulta futura:** paciente pode ser retirado da agenda do dia correspondente.
-
-- **Cancelamento de consulta:** feito manualmente pelo usuário do software por enquanto. O sistema deve ser desenhado de forma **desacoplada**, deixando espaço para uma automação futura (ex.: via webhook/integração) sem precisar ser reescrito.
-
-  
-
-**Regras de ausência do paciente**
-
-  
-
-| Situação | Pacote | Tratamento (valor único) | Consulta avulsa | Avaliação / quiropraxia |
-
-| --- | --- | --- | --- | --- |
-
-| Falta **sem aviso** | Perde a sessão; **não paga nada** e não há reagendamento | Perde a consulta **e paga multa de R$ 39** (30% de R$ 130), que deve ser **informada ao paciente** | Perde **30% do valor** (R$ 39); se pedir reembolso, esse percentual é retido | **Sinal de R$ 100 fica com o fisioterapeuta**; para remarcar, paga novo sinal |
-
-| Falta **com aviso prévio** | Sessão cancelada e contada como falta; sem reagendamento | Perde a consulta, sem reagendamento (sessões ilimitadas dentro do valor fixo); **sem multa** | Pode **reagendar em até 3 dias** | *A definir* |
-
-  
-
-- **Registro de presença e falta:** feito **manualmente pelo usuário**. A Agenda tem um botão **"Confirmar presença"**, e a falta sem aviso também é informada pelo usuário. A multa de R$ 39 do plano de tratamento só vale em **falta sem aviso**.
-
-- **Justificativa só vale se o paciente avisar antes** da consulta que não vai comparecer. Justificativa apresentada depois da falta não vale.
-
-- **Janela de 3 dias (avulsa):** passado o prazo sem reagendar, a consulta vira **cancelamento permanente**. O sistema exibe um **indicador visual** mostrando se a consulta ainda está dentro da janela ou se o prazo expirou. A avaliação do aviso/justificativa é feita **manualmente** pelo usuário.
-
-- **Sinal de R$ 100 (avaliação e quiropraxia):** sempre pago antes do atendimento. Quando o paciente comparece, o sinal é **abatido** do valor total.
-
-- **Reembolso:** só existe para **sessões avulsas**, nunca para pacote.
-
-  
-
----
-
-  
-
-## 6. Aba de Pendências
-
-  
-
-Reúne: pacientes que precisam reagendar (dentro da janela dos 3 dias), pacientes que não pagaram e pendência do **Contrato clínica** (nome provisório do documento assinado pelo paciente que autoriza o uso de imagem).
-
-  
-
-**Validação do Contrato clínica:** o sistema verifica se existe contrato para o paciente. Se existe, o fisioterapeuta pode usar imagem/vídeo normalmente, sem nenhum aviso. Se **não existe**, o **anexo de imagem ou vídeo é bloqueado**. Por enquanto o bloqueio vale **apenas para mídia**; o atendimento segue normal. Restrições adicionais podem ser incluídas depois.
-
-  
-
----
-
-  
-
-## 7. Financeiro
-
-  
-
-- Despesas automáticas/recorrentes e manuais, ambas suportadas.
-
-- Acertos financeiros quinzenais e mensais.
-
-- Investimentos: nome, categoria (gasto fixo, gasto variável da clínica, equipamentos fixos, material descartável, marketing), valor pago, data.
-
-- Recibo de convênio: prazo médio de \~1 mês.
-
-- Pagamento: por enquanto só pago/não pago; gateway futuro como generic domain via CLI.
-
-- **Pagamento antecipado:** o paciente sempre paga antes da consulta; consulta avulsa não paga sai da agenda. Por enquanto, tolera-se o pagamento até 5 dias depois.
-
-- Nota fiscal: emissão manual (Receita Saúde); sistema só guarda/vincula o arquivo.
-
-- Campo único indicando se o atendimento é convênio ou não.
-
-  
-
----
-
-  
-
-## 8. Equipamentos
-
-  
-
-Entidade Equipamentos com subtela de Manutenção de Aparelhos. Alerta de manutenção dispara 30 dias antes da data necessária.
-
-  
-
-**Equipamentos a comprar:** o item "a comprar" é o **mesmo registro** do equipamento; ao ser comprado, só muda o status e ele é realocado para a lista de comprados.
-
-  
-
----
-
-  
-
-## 9. Sincronização Offline
-
-  
-
-- Ficha de avaliação funcionando offline é **prioridade alta** do MVP.
-
-- **Agenda e Financeiro também funcionam offline**, para permitir marcar presença/falta e lançar pagamento durante atendimentos domiciliares sem internet.
-
-- **Fluxo de Evolução também precisa estar disponível offline.** Toda vez que o dispositivo estiver online, o sistema sincroniza o Fluxo de Evolução de cada paciente (tratamentos e exercícios cadastrados), mantendo uma cópia local sempre atualizada — meta inicial de no máximo **2 dias** de defasagem entre uma sincronização e outra (valor de partida, ajustável). Isso garante que, mesmo sem internet, o usuário consegue abrir o tratamento já cadastrado de um paciente e aplicá-lo durante a sessão em tempo real.
-
-- Conflito de dados do mesmo paciente entre dispositivos: cenário considerado **raro/muito difícil** de acontecer, mas quando ocorrer, a solução é exibir as duas versões completas lado a lado e deixar o usuário escolher qual levar adiante (merge estilo GitHub).
-
-- Dados salvos localmente e sincronizados quando há internet.
-
-  
-
----
-
-  
-
-## 10. Fluxo do Negócio — Visão Completa
-
-  
-
-### 10.1 Da captação ao primeiro atendimento
-
-  
-
-1. **Contato inicial** chega por Google, WhatsApp (principal) ou Instagram.
-
-2. Se o contato **não fecha** atendimento → vira **paciente de repescagem** (dados básicos registrados manualmente). O sistema dispara uma **mensagem automática de repescagem 48h depois da avaliação** para pacientes que fizeram avaliação mas não seguiram adiante *(aplica-se a quem chegou a avaliar)*.
-
-3. Se o contato **fecha** → **cadastro completo do paciente** (dados pessoais, clínicos e Contrato clínica pendente de assinatura).
-
-4. **Avaliação** é agendada (duração com tempo base configurável, valor fixo de R$ 330). É nela que entram: anamnese completa, mapa corporal, classificação do tipo de dor (taxonomia em cascata), queixa principal, exame físico e testes especiais.
-
-5. A partir da avaliação, o fisioterapeuta define o **diagnóstico fisioterapêutico** e monta o **Fluxo de Evolução** do paciente (Tratamento 1, 2, 3... com exercícios de choque/movimentação).
-
-  
-
-### 10.2 Modelo de cobrança e agendamento
-
-  
-
-6. Definição do modelo: **consulta avulsa** (R$ 130), **sessão avulsa de liberação/quiropraxia** (R$ 200), **pacote** (valor e número de sessões definidos por paciente), **tratamento** (valor único até o fim) ou **convênio Doctor Prime** (R$ 50 clínica / R$ 80 domicílio — sempre tratado como avulso).
-
-7. **Quiropraxia exige avaliação prévia registrada** — o sistema deve bloquear o agendamento desse tipo de sessão sem essa pré-condição. Liberação miofascial não exige.
-
-8. Agendamento criado — **fixo por padrão**, só muda por imprevisto; atendimentos esporádicos são mais flexíveis. O sistema **bloqueia horário duplicado** e avisa que já existe paciente naquele horário.
-
-9. **Pacote**: todas as sessões são pagas de uma vez, no fechamento do pacote, antes das sessões ocorrerem; sem reagendamento e sem reembolso.
-
-  
-
-### 10.3 Ciclo de cada sessão
-
-  
-
-10. **Confirmação automática** enviada 16h antes do horário.
-
-11. Sessão acontece. Fisioterapeuta **acessa o Fluxo de Evolução** do paciente (disponível mesmo offline, sincronizado a cada conexão, com defasagem máxima de \~2 dias) e aplica/registra o tratamento em tempo real.
-
-12. **Pagamento** registrado como pago/não pago (Pix, crédito ou débito).
-
-13. **Mensagem pós-sessão automática 24h depois**, para quiropraxia, liberação e avaliação, perguntando o estado do paciente.
-
-14. Se houve **falta sem aviso**: **pacote** perde a sessão sem pagar nada; **tratamento** perde a consulta e paga multa de R$ 39 (informada ao paciente); **avulsa** perde 30% do valor; **avaliação/quiropraxia** perde o sinal de R$ 100 (e paga novo sinal para remarcar).
-
-15. Se houve **aviso prévio**: na **avulsa** o paciente pode reagendar em até 3 dias — depois disso, cancelamento permanente; no **pacote** a sessão é cancelada e conta como falta; no **tratamento** a consulta é perdida, sem reagendamento e sem multa. Justificativa só vale se avisar antes. Reembolso só existe para avulsas.
-
-  
-
-### 10.4 Financeiro e documentos
-
-  
-
-16. **Acertos financeiros** fechados quinzenal e mensalmente (receita, despesas fixas/variáveis — automáticas ou manuais —, investimentos).
-
-17. Para convênio: **recibo vinculado ao paciente**, com prazo médio de recebimento de \~1 mês; nota fiscal emitida manualmente fora do sistema (Receita Saúde) e só anexada/vinculada ao paciente.
-
-18. **Aba de pendências** reúne em um só lugar: pacientes a reagendar, pacientes inadimplentes, pendência do Contrato clínica.
-
-  
-
-### 10.5 Encerramento do tratamento
-
-  
-
-19. Tratamento segue até **alta formal** (dada pelo fisioterapeuta) ou, no caso mais comum, **auto-alta** (paciente simplesmente para de comparecer, sem alta formal).
-
-20. Dados do paciente **nunca são excluídos** do sistema, independente do desfecho.
-
-  
-
-### 10.6 Diagrama
-
-  
+## 2. Mapa de contextos
 
 ```mermaid
-
-flowchart TD
-
-    A[Contato inicial<br/>Google / WhatsApp / Instagram] --> B{Fechou atendimento?}
-
-    B -- Não --> C[Paciente de repescagem]
-
-    B -- Sim --> D[Cadastro completo<br/>+ Contrato clinica]
-
-    D --> E[Avaliação — R$330 com sinal de R$100<br/>pré-atendimento curto, anamnese, mapa corporal, tipo de dor]
-
-    E -. 48h depois, se não seguiu .-> C
-
-    E --> F[Diagnóstico fisioterapêutico<br/>+ Fluxo de Evolução criado]
-
-    F --> G{Modelo de cobrança}
-
-    G --> G1[Avulsa R$130]
-
-    G --> G2[Liberação/Quiropraxia R$200]
-
-    G --> G3[Pacote — valor definido por paciente<br/>pago integral antes<br/>sem reagendamento]
-
-    G --> G5[Tratamento — valor único]
-
-    G --> G4[Convênio Doctor Prime<br/>R$50 clínica / R$80 domicílio]
-
-    G2 -. exige .-> E
-
-    G --> H[Agendamento<br/>fixo por padrão]
-
-    H --> I[Confirmação automática<br/>16h antes]
-
-    I --> J[Sessão em tempo real<br/>acessa Fluxo de Evolução offline]
-
-    J --> K[Pagamento pago/não pago]
-
-    J --> L[Mensagem pós-sessão<br/>24h depois]
-
-    H --> M{Paciente faltou?}
-
-    M -- Sem aviso --> N{Tipo}
-
-    N -- Pacote --> N1[Sessão perdida<br/>sem reagendar nem reembolso]
-
-    N -- Avulsa --> N2[Perde 30% do valor]
-
-    N -- Tratamento --> N3[Perde a consulta e paga multa de R$39]
-
-    N -- Avaliação ou quiropraxia --> N4[Sinal de R$100 retido<br/>novo sinal para remarcar]
-
-    N2 -. se pedir reembolso .-> R[Reembolso com 30% retido]
-
-    M -- Avisou antes --> Q{Tipo}
-
-    Q -- Pacote --> Q1[Sessão cancelada<br/>conta como falta]
-
-    Q -- Avulsa --> Q2[Reagenda em até 3 dias]
-
-    Q -- Tratamento --> Q3[Perde a consulta<br/>sem multa]
-
-    Q2 -. fora do prazo .-> P[Cancelamento permanente]
-
-    Q2 --> H
-
-    K --> S[Acerto financeiro<br/>quinzenal / mensal]
-
-    G4 --> T[Recibo vinculado ao paciente<br/>~1 mês de prazo]
-
-    F --> U[Tratamento segue]
-
-    U --> V{Desfecho}
-
-    V -- Alta formal --> W[Alta]
-
-    V -- Mais comum --> X[Auto-alta / abandono]
-
+flowchart LR
+    CAP[Captação] -->|LeadConvertido| PAC[Pacientes]
+    PAC -.->|PacienteId| CLI[Atendimento Clínico]
+    PAC -.->|PacienteId| AGE[Agenda]
+    PAC -.->|PacienteId| COB[Planos e Cobrança]
+    CLI -->|AvaliacaoRegistrada| AGE
+    AGE -->|AgendamentoCriado, FaltaRegistrada, AtendimentoRealizado| COB
+    COB -->|PagamentoVencido| AGE
+    COB -->|PagamentoRegistrado| FIN[Gestão Financeira]
+    AGE -->|AtendimentoRealizado de convênio| REC[Recibos e Convênios]
+    CON[Contratos e Consentimento] -->|consentimento vigente| CLI
+    EQP[Equipamentos] -.->|EquipamentoId| CLI
+    AGE -->|eventos| COM[Comunicação]
+    COB -->|eventos| COM
+    CLI -->|eventos| COM
+    IAM[Identidade e Acesso] -.->|UsuarioId e permissões| CLI
+    IAM -.-> AGE
+    IAM -.-> COB
 ```
 
-  
+Legenda: seta cheia = evento ou chamada entre contextos; seta pontilhada = apenas referência por identificador.
+
+**Regra de integração:** um contexto guarda só o **ID** de entidades de outro contexto (`PacienteId`, `EquipamentoId`, `AgendamentoId`), nunca o objeto inteiro. Se precisar de um dado (ex.: nome do paciente na agenda), mantém uma cópia somente leitura, atualizada por evento.
 
 ---
 
-  
+## 3. Linguagem ubíqua
 
-## 11. Arquitetura Técnica — Resumo Preliminar (a aprofundar com você depois)
+| Termo | Significado | Contexto |
+| --- | --- | --- |
+| **Lead** | Pessoa que entrou em contato mas ainda não fechou atendimento (repescagem) | Captação |
+| **Paciente** | Pessoa cadastrada, identificada por CPF | Pacientes |
+| **Agendamento** | Horário marcado para um atendimento | Agenda |
+| **Atendimento** | O agendamento que de fato aconteceu | Agenda |
+| **Sessão** | O registro clínico do que foi feito no atendimento (protocolo) | Atendimento Clínico |
+| **Avaliação** | Primeiro atendimento completo, com anamnese e pré-atendimento curto | Atendimento Clínico |
+| **Fluxo de Evolução** | Plano clínico do paciente, composto por Tratamentos numerados | Atendimento Clínico |
+| **Tratamento (clínico)** | "Tratamento 1, 2, 3...": etapa do Fluxo de Evolução com exercícios | Atendimento Clínico |
+| **Plano Tratamento (comercial)** | Modalidade de cobrança de valor único até a alta, sem limite de sessões | Planos e Cobrança |
+| **Pacote** | Modalidade com frequência e número de sessões fechados | Planos e Cobrança |
+| **Avulsa** | Consulta cobrada por sessão | Planos e Cobrança |
+| **Sinal** | R$ 100 antecipados em avaliação e quiropraxia | Planos e Cobrança |
+| **Contrato clínica** | Documento assinado que autoriza uso de imagem (nome provisório) | Contratos e Consentimento |
+| **Usuário** | Pessoa com acesso ao sistema (hoje só o fisioterapeuta) | Identidade e Acesso |
+| **Dispositivo** | Computador registrado para usar o app (ex.: o MacBook do consultório) | Identidade e Acesso |
+| **Papel** | Conjunto de permissões de um usuário (hoje só o Proprietário) | Identidade e Acesso |
+| **Sessão de login** | Período em que o usuário está autenticado no servidor | Identidade e Acesso |
 
-  
+**Segunda colisão:** "sessão" também aparece como **Sessão** clínica (o registro do atendimento) e **Sessão de login** (o período autenticado). Use sempre o nome qualificado (`Clinico.Sessao` e `Identidade.SessaoDeLogin`).
 
-Você já trouxe uma proposta técnica inicial, registrada aqui como ponto de partida para a próxima etapa (ainda não é documento de arquitetura final):
-
-  
-
-- **Autenticação:** login inicial por e-mail/senha + MFA; depois, biometria nativa — Touch ID no macOS (via `LocalAuthentication`, chave guardada no Keychain/Secure Enclave) e Windows Hello no Windows (via `UserConsentVerifier`/WebAuthn, chave protegida por DPAPI + TPM 2.0).
-
-- **Banco local criptografado:** SQLCipher (SQLite) ou Realm com AES-256; chave liberada para a RAM só após autenticação biométrica.
-
-- **Disco:** recomendação de exigir FileVault ativo no Mac e BitLocker ativo no Windows.
-
-- **Sincronização:** fila de mutações offline, sincronização incremental (delta sync) via TLS 1.3 ao reconectar, resolução de conflito (last-write-wins com timestamp ou merge manual — consistente com o modelo de merge definido na seção 9), TTL de cache local (ex.: Fluxo de Evolução sincronizado a cada conexão, com defasagem máxima de \~2 dias) e bloqueio de novas gravações offline após X dias sem check-in online.
-
-- **Auditoria (LGPD):** logs locais criptografados e assinados digitalmente das ações sobre prontuário, enviados ao servidor com prioridade na reconexão.
-
-- **Stack multiplataforma (Mac + Windows):** cogitado Tauri 2.0 ou Electron (alternativas: Flutter Desktop, .NET MAUI).
-
-  
-
-*Combinamos discutir e fechar essa arquitetura com mais profundidade em uma etapa dedicada — o resumo acima é só para não perder o que já foi levantado.*
-
-  
+**Atenção a uma colisão de linguagem:** a palavra **"tratamento"** significa duas coisas diferentes. No contexto clínico é uma etapa do Fluxo de Evolução ("Tratamento 1"). No contexto comercial é uma modalidade de cobrança. Isso é exatamente o motivo de existirem contextos separados. No código, mantenha os nomes distintos (`Clinico.Tratamento` e `Cobranca.PlanoTratamento`) e nunca compartilhe a mesma classe entre os dois.
 
 ---
 
-  
+## 4. Contextos em detalhe
 
-## 12. Checklist Final — O que ainda falta fechar
+### 4.1 Captação
 
-  
+**Responsabilidade:** registrar contatos que ainda não viraram pacientes e apoiar a repescagem.
 
-- [ ] **Multa contratual por atraso** (10% + 2% ao mês nos modelos de contrato) — decidir depois
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **Lead** (raiz) | nome, telefone, origem (Google, WhatsApp, Instagram), observações, status (em contato, repescagem, convertido) | Dados básicos inseridos manualmente. Lead **não** é Paciente: não exige CPF. Ao fechar, gera o Paciente (evento `LeadConvertido`) |
 
-- [ ] **Cláusulas de rescisão dos modelos de contrato** (acerto proporcional) — adaptar depois à regra de pacote sem reembolso
-
-- [ ] **Avaliação/quiropraxia com aviso prévio:** nada foi definido sobre o que acontece com o sinal
-
-- [ ] **Contrato clínica:** definir nome oficial e conteúdo; restrições além do bloqueio de mídia entram depois
-
-- [ ] **Stack final** (Tauri x Electron x Flutter x .NET MAUI) e demais decisões técnicas — etapa de arquitetura
-
-- [ ] **Detalhar LGPD** (criptografia, backup, controle de acesso multiusuário) com base no resumo da seção 11
-
-- [ ] **Módulo de IA lendo WhatsApp** — fase futura, fora do MVP
-
-  
+**Emite:** `LeadCriado`, `LeadConvertido`.
 
 ---
 
-  
+### 4.2 Pacientes
 
-## 13. Próximos passos sugeridos
+**Responsabilidade:** identidade e dados cadastrais.
 
-  
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **Paciente** (raiz) | `PacienteId`, **CPF** (VO), nome, data de nascimento, profissão atual e a de maior tempo, **Endereço** (VO), contatos, **ContatoDeEmergência** (VO), situação (ativo ou arquivado) | **CPF único**. **Nunca é excluído**, só arquivado. **Idade é calculada** a partir do nascimento, nunca gravada. Alterações mantêm histórico |
 
-Com as regras de negócio já bem fechadas, os itens acima não bloqueiam o início da documentação formal. Sugestão de documentos para a etapa seguinte:
-
-  
-
-1. **Este documento (regras de negócio)** → considerar fechado como v7 (PRD inicial).
-
-2. **Modelo de domínio (DDD)** — publicado como documento separado: bounded contexts (Pacientes, Agenda, Financeiro, Fluxo de Evolução, Equipamentos, Notificações), entidades, agregados e eventos de domínio.
-
-3. **Documento de arquitetura técnica:** evoluir a seção 11 até virar o documento definitivo (stack, segurança, sincronização).
-
-4. **Dicionário de dados:** campos e tipos de cada entidade (Paciente, Sessão, Tratamento, Exercício, Lançamento financeiro etc.), incluindo a taxonomia de dor da seção 4.1.
-
-  
+**Value objects:** `CPF`, `Endereço`, `Telefone`, `ContatoDeEmergência`. **Emite:** `PacienteCadastrado`, `PacienteArquivado`, `DadosDoPacienteAlterados`.
 
 ---
 
-  
+### 4.3 Atendimento Clínico (core)
 
-*Documento reflete tudo que foi definido até agora. Os itens da seção 12 podem ser resolvidos em paralelo, durante a modelagem de domínio e a etapa de arquitetura técnica, sem travar o início do desenvolvimento.*
+**Responsabilidade:** tudo que é clínico, do primeiro exame à alta.
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **Avaliação** (raiz) | anamnese (doenças, cirurgias e lesões anteriores, etilismo, tabagismo, sono, alimentação, estresse, vida social, piora/melhora), **TipoDeDor** (VO em cascata), **MapaCorporal** (VO, uma ou mais regiões de dermátomo C2–S5), queixa principal, exame físico, testes especiais, diagnóstico médico, médico, medicamentos, diagnóstico fisioterapêutico, pré-atendimento curto, observações | Pode ser preenchida **offline** (prioridade máxima). Todas as alterações geram **revisão** (histórico append-only) |
+| **FluxoDeEvolução** (raiz) | `PacienteId`, lista ordenada de **Tratamentos** (1, 2, 3...), cada um com **Exercícios**; situação (em andamento, alta formal, auto-alta) | Tratamentos numerados em sequência. **A auto-alta é marcada manualmente** pelo usuário. Sincronizado a cada conexão, defasagem máxima de \~2 dias. Mantém histórico de alterações |
+| **Sessão** (raiz) | `AgendamentoId`, `PacienteId`, `TratamentoId` aplicado, **protocolo**: estado de chegada, estado de saída, nível de dor, **AmplitudeDeMovimento**, abordagem, potência; **Mídias** (fotos e vídeos) | Todos os campos do protocolo são **obrigatórios**. Mídia só pode ser anexada se existir **consentimento de imagem vigente** (consulta ao contexto Contratos). Foto sempre vinculada à sessão |
+
+**Exercício** (entidade dentro do Tratamento): tipo; **movimentação** (repetições, séries, descanso, músculo/localização) e/ou **choque** (duração, `EquipamentoId`). Pode ter só um dos dois ou os dois combinados.
+
+**Value objects:** `TipoDeDor` (natureza, categoria, subcategoria, mecanismo, padrão temporal, região), `RegiãoDeDermátomo`, `AmplitudeDeMovimento` (**Livre** ou **Limitada com grau**; grau dispensado quando a função está 100%), `EstadoDeChegada`, `NívelDeDor` (escala numérica a definir).
+
+**Emite:** `AvaliaçãoRegistrada`, `SessãoRegistrada`, `TratamentoIniciado`, `AltaConcedida`, `AutoAltaRegistrada`. **Consome:** `AtendimentoRealizado` (para abrir o registro da sessão).
+
+**Observação:** o **laudo/relatório funcional** não é agregado; é um documento gerado a partir da Avaliação e do Fluxo de Evolução (serviço de geração de documentos).
+
+---
+
+### 4.4 Agenda (core)
+
+**Responsabilidade:** horários, presença, falta e janela de reagendamento. **Não decide a consequência financeira da falta**, só registra o fato.
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **Agendamento** (raiz) | `PacienteId`, tipo (avaliação, quiropraxia, liberação, sessão), início e fim, local (clínica ou domicílio com endereço), status (agendado, confirmado, realizado, falta sem aviso, ausência avisada, reagendado, cancelamento permanente), modalidade de origem | **Sem sobreposição de horário**: bloqueia e avisa que já existe paciente no horário. **Quiropraxia exige Avaliação registrada**; liberação não exige. **Duração por tipo:** avaliação com tempo base configurável, avulsa e convênio de reembolso 40 min, Doctor Prime 30 min. **Pacote: nunca reagenda.** Avulsa com aviso: reagenda em até 3 dias; passado o prazo, cancelamento permanente. Cancelamento é manual, com porta aberta para automação. **Presença e falta são registradas manualmente:** o botão *Confirmar presença* gera `AtendimentoRealizado`, e a falta (com ou sem aviso) é informada pelo usuário |
+| **SérieFixa** (raiz) | padrão semanal recorrente de um paciente | Gera os agendamentos da série. Muda só por imprevisto. Atendimentos esporádicos ficam fora da série |
+
+**Read models (consultas, não agregados):**
+
+- **Frequência do paciente** = atendimentos realizados menos faltas. Reagendamento avisado não conta como falta.
+- **Consultas reagendáveis** (indicador visual da janela de 3 dias).
+- **Pacientes do dia** (Dashboard).
+
+**Emite:** `AgendamentoCriado`, `AtendimentoConfirmado`, `AtendimentoRealizado`, `FaltaRegistrada` (com `comAviso`), `AgendamentoReagendado`, `CancelamentoPermanenteDecretado`. **Consome:** `AvaliaçãoRegistrada` (libera quiropraxia), `PagamentoVencido` (retira avulsa não paga da agenda).
+
+---
+
+### 4.5 Planos e Cobrança
+
+**Responsabilidade:** o que o paciente contratou, quanto deve e as consequências financeiras de presença e ausência.
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **PlanoContratado** (raiz) | `PacienteId`, modalidade (**Avulsa**, **Pacote**, **PlanoTratamento**), valor base, situação do valor (editável ou travado), flag de convênio (Doctor Prime ou reembolso) | **Valor base editável até ser registrado/executado; depois é imutável.** Avaliação tem valor fixo de R$ 330. **Pacote:** frequência semanal, total de sessões, dias definidos, valor total, saldo de sessões, pago de uma vez e antes. **Plano Tratamento:** valor único até a alta, sem limite de sessões. **Convênio é sempre avulso** (R$ 50 clínica, R$ 80 domicílio) |
+| **Cobrança** (raiz) | origem, tipo (sessão, avaliação, sinal, pacote, plano, multa), valor, status (**pago**, **não pago**), forma (Pix, crédito, débito), data | Paciente paga antes; avulsa não paga sai da agenda, com tolerância atual de 5 dias. Valor **travado** após execução |
+| **Reembolso** (raiz) | cobrança de origem, valor, percentual retido | **Só para avulsa.** Nunca para pacote. Com falta sem aviso, 30% é retido |
+
+**Política de Ausência** (serviço de domínio, o ponto central deste contexto). Entrada: modalidade e `comAviso`.
+
+| Situação | Pacote | Plano Tratamento | Avulsa | Avaliação / quiropraxia |
+| --- | --- | --- | --- | --- |
+| Falta sem aviso | perde a sessão, sem cobrança | perde a consulta + **multa R$ 39** (só sem aviso), informada ao paciente | retém **30%** (R$ 39) | **sinal de R$ 100 retido**; novo sinal para remarcar |
+| Falta com aviso | cancelada, conta como falta | perde a consulta, **sem multa** | reagenda em até 3 dias | a definir |
+
+**Sinal:** R$ 100, sempre antes. Ao comparecer, é **abatido** do valor total (R$ 330 na avaliação, R$ 200 na quiropraxia).
+
+**Emite:** `CobrançaCriada`, `PagamentoRegistrado`, `PagamentoVencido`, `MultaAplicada`, `SinalRetido`, `ReembolsoRealizado`, `ValorTravado`. **Consome:** `AgendamentoCriado` (cria sinal de avaliação ou quiropraxia), `AtendimentoRealizado` (trava valor, abate sinal), `FaltaRegistrada` (aplica a política).
+
+**Reservado para o futuro:** multa contratual por atraso (10% + 2% ao mês), gateway de pagamento como domínio genérico via CLI, mensalidade.
+
+---
+
+### 4.6 Gestão Financeira
+
+**Responsabilidade:** visão gerencial do consultório.
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **Despesa** (raiz) | descrição, tipo (**fixa** ou **variável**), origem (**automática** recorrente ou **manual**), valor, data | Despesa automática é gerada por uma **RegraDeRecorrência** |
+| **Investimento** (raiz) | nome, categoria (gasto fixo, gasto variável da clínica, equipamentos fixos, material descartável, marketing), valor pago, data |  |
+| **FechamentoFinanceiro** (raiz) | período (quinzenal ou mensal), totais | Fechado quinzenal e mensalmente |
+
+**Receitas** não são lançadas aqui: chegam pelo evento `PagamentoRegistrado` e viram uma projeção local (isso funciona bem offline). **Read models:** resumo do dia, da semana e do mês; gráfico de barras (receita, despesa e total) para 1, 3 e 6 meses; pacientes pagos, não pagos e pendentes. **Consome:** `PagamentoRegistrado`. **Opcional:** `EquipamentoComprado` pode gerar um Investimento (decidir).
+
+---
+
+### 4.7 Recibos e Convênios
+
+**Responsabilidade:** recibos de convênio e vínculo da nota fiscal.
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **ReciboDeConvênio** (raiz) | `PacienteId`, atendimentos incluídos, convênio (Doctor Prime ou reembolso), status (**pendente** ou **enviado**), prazo médio de \~1 mês, **nota fiscal anexada** (arquivo) | A **emissão é manual** no Receita Saúde; o sistema só guarda e vincula o arquivo ao paciente. Fluxo igual para os dois convênios (a verificar) |
+
+**Consome:** `AtendimentoRealizado` com convênio (cria recibo pendente).
+
+---
+
+### 4.8 Contratos e Consentimento
+
+**Responsabilidade:** documentos assinados e autorização de uso de imagem.
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **ContratoClínica** (raiz, nome provisório) | `PacienteId`, versão do modelo, status (**pendente**, **assinado**, **revogado**), dados da assinatura (método a decidir), cláusula de tratamento de dados sensíveis (LGPD) | **Sem contrato assinado, o anexo de imagem ou vídeo é bloqueado.** Só mídia por enquanto; o atendimento segue normal. Restrições adicionais entram depois, então modele como **lista de políticas extensível**. Prevê **revogação**. Mantém histórico |
+
+**Interface oferecida aos outros contextos:** `consentimentoDeImagemVigente(pacienteId) → sim ou não`. O Atendimento Clínico consulta essa interface por uma camada anticorrupção, sem conhecer a estrutura interna do contrato.
+
+**Emite:** `ContratoAssinado`, `ContratoRevogado`.
+
+---
+
+### 4.9 Equipamentos
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **Equipamento** (raiz) | nome, status (**a comprar** ou **comprado**), custo estimado, prioridade, **Manutenções** (data prevista, histórico) | Item "a comprar" e item comprado são o **mesmo registro**; só muda o status e ele vai para a lista de comprados. **Alerta 30 dias antes** da manutenção |
+
+O Exercício do Atendimento Clínico referencia o equipamento do choque apenas por `EquipamentoId`. **Emite:** `EquipamentoComprado`, `ManutençãoVencendo`.
+
+---
+
+### 4.10 Comunicação e Lembretes
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **MensagemProgramada** (raiz) | destinatário, tipo, momento de envio, status (programada, enviada, cancelada, falhou) | **Confirmação** 16h antes; **lembrete de pagamento** 3 dias antes; **pós-sessão** 24h depois (quiropraxia, liberação, avaliação); **repescagem** 48h após a avaliação. Se o agendamento é cancelado ou remarcado, a mensagem é cancelada |
+| **LembreteDoUsuário** (raiz) | `PacienteId`, texto | Espaço para o usuário não esquecer mensagens do paciente |
+| **ScriptDeContato** (raiz) | texto-modelo, empresa de destino | Scripts para contato com empresas |
+
+O **canal** (WhatsApp) é uma **porta** (`CanalDeMensagem`) com adaptador trocável, porque o envio automático depende de decisão técnica ainda aberta (WhatsApp Business API). **Consome:** `AgendamentoCriado`, `AtendimentoRealizado`, `AvaliaçãoRegistrada`, `CobrançaCriada`, `AgendamentoReagendado`.
+
+---
+
+### 4.11 Identidade e Acesso
+
+**Responsabilidade:** quem pode entrar no sistema, de qual computador e com que permissões. É um subdomínio **genérico**, mas fica como contexto próprio, atrás da porta `Autenticador`, para que uma troca futura de implementação (ex.: provedor gerenciado) não toque nos demais contextos.
+
+| Agregado | Conteúdo | Regras |
+| --- | --- | --- |
+| **Usuário** (raiz) | `UsuárioId`, nome, e-mail, situação (ativo, bloqueado, desativado), **papéis**, credencial de senha (somente o hash), fator **MFA** (TOTP + códigos de recuperação) | E-mail único. **Sem cadastro público**: a conta é criada pelo administrador ou por convite. **Sempre existe ao menos um Proprietário ativo.** MFA obrigatório no primeiro acesso. A conta **nunca é excluída**, só desativada |
+| **Dispositivo** (raiz) | `DispositivoId`, `UsuárioId`, apelido, plataforma (macOS ou Windows), data de registro, último check-in online, biometria habilitada, situação (ativo ou revogado) | Registrado no primeiro login; o `DispositivoId` é o mesmo usado na sincronização. **Dispositivo revogado não sincroniza** e é bloqueado na próxima conexão. Passou do limite de dias offline (a definir): bloqueia novas gravações até um check-in |
+| **SessãoDeLogin** (raiz, no servidor) | usuário, dispositivo, família de refresh tokens, validade, situação | Refresh token **rotativo**: reutilizar um token antigo revoga a família inteira. Revogável a qualquer momento |
+
+**Papel e Permissão** (value objects): o Papel agrupa permissões por contexto (ex.: `clínico:ler`, `clínico:escrever`, `financeiro:ler`, `agenda:escrever`). Hoje existe só o **Proprietário**, com todas as permissões, mas o código **já checa permissão em cada caso de uso**. Assim, a chegada de Recepção ou Financeiro (daqui a \~2 anos) não exige reescrever nada.
+
+**Desbloqueio local** (parte do app, não é agregado): o app tem um estado local *bloqueado* ou *desbloqueado*. Desbloquear (biometria ou senha mestre) libera a chave do banco local e funciona **offline**. É um mecanismo separado do login no servidor, que precisa de internet. Detalhes e opções na seção 6 do documento de arquitetura técnica.
+
+**Autoria:** todo contexto grava `UsuárioId` e `DispositivoId` em cada revisão do histórico de alterações. Eles chegam por um `ContextoDeAcesso` (usuário, dispositivo, permissões) injetado na camada de aplicação. **Nenhum contexto consulta a Identidade diretamente.**
+
+**Emite:** `UsuárioCriado`, `MfaConfigurado`, `LoginRealizado`, `LoginFalhou`, `DispositivoRegistrado`, `DispositivoRevogado`, `SenhaAlterada`, `SessãoRevogada`, `UsuárioBloqueado`. **Consumidores:** Auditoria (todos) e Sincronização (`DispositivoRevogado`).
+
+---
+
+### 4.12 Contextos genéricos e transversais
+
+| Contexto | O que cobre |
+| --- | --- |
+| **Sincronização Offline** | Fila de mutações, delta sync, conflito mostrando duas versões do agregado lado a lado, cache local, bloqueio por inatividade. **Offline em:** Ficha de Avaliação (prioridade máxima), Fluxo de Evolução, Agenda e Financeiro |
+| **Auditoria** | Histórico de alterações e logs de acesso (LGPD). Sugestão: versões append-only por agregado clínico, sem event sourcing completo |
+| **Arquivos** | Fotos, vídeos, contratos assinados, notas fiscais |
+| **Geração de Documentos** | PDF do laudo/relatório funcional |
+
+**Painel de Pendências e Dashboard** não são contextos: são **read models** que compõem dados de Agenda (a reagendar), Cobrança (não pagos) e Contratos (contrato pendente).
+
+---
+
+## 5. Processos entre contextos
+
+### 5.1 Falta do paciente
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário
+    participant AG as Agenda
+    participant CB as Planos e Cobrança
+    participant CM as Comunicação
+    U->>AG: registra falta, com ou sem aviso
+    AG->>AG: atualiza status e abre janela de reagendamento
+    AG-->>CB: FaltaRegistrada com modalidade e comAviso
+    CB->>CB: aplica a Política de Ausência
+    CB-->>CM: MultaAplicada ou SinalRetido
+```
+
+A Agenda só registra o fato. Quem decide a consequência financeira é a Cobrança, e assim as duas regras mudam de forma independente.
+
+### 5.2 Avaliação, sinal e liberação da quiropraxia
+
+```mermaid
+sequenceDiagram
+    participant AG as Agenda
+    participant CB as Planos e Cobrança
+    participant CL as Atendimento Clínico
+    participant CM as Comunicação
+    AG-->>CB: AgendamentoCriado de avaliação
+    CB->>CB: cria cobrança de sinal de R$100
+    AG-->>CB: AtendimentoRealizado
+    CB->>CB: abate o sinal do valor de R$330
+    CL-->>AG: AvaliacaoRegistrada
+    Note over AG: libera agendamento de quiropraxia
+    CL-->>CM: AvaliacaoRegistrada
+    CM->>CM: programa repescagem para 48h depois
+```
+
+---
+
+## 6. Catálogo de eventos
+
+| Evento | Emissor | Consumidores | Efeito |
+| --- | --- | --- | --- |
+| `LeadConvertido` | Captação | Pacientes | Cria o Paciente |
+| `AvaliaçãoRegistrada` | Clínico | Agenda, Comunicação | Libera quiropraxia; programa repescagem |
+| `AgendamentoCriado` | Agenda | Cobrança, Comunicação | Cria sinal; programa confirmação |
+| `AtendimentoRealizado` | Agenda | Cobrança, Clínico, Recibos, Comunicação | Trava valor e abate sinal; abre sessão; cria recibo de convênio; programa pós-sessão |
+| `FaltaRegistrada` | Agenda | Cobrança | Aplica Política de Ausência |
+| `PagamentoVencido` | Cobrança | Agenda | Retira avulsa não paga da agenda |
+| `PagamentoRegistrado` | Cobrança | Gestão Financeira | Lança receita |
+| `MultaAplicada`, `SinalRetido` | Cobrança | Comunicação, Gestão Financeira | Informa o paciente; lança receita |
+| `ContratoAssinado`, `ContratoRevogado` | Contratos | (consulta) Clínico | Libera ou bloqueia mídia |
+| `ManutençãoVencendo` | Equipamentos | Comunicação | Alerta 30 dias antes |
+| `LoginRealizado`, `LoginFalhou` | Identidade | Auditoria | Registro de acesso (LGPD) |
+| `DispositivoRevogado` | Identidade | Sincronização, Auditoria | Bloqueia a sincronização e o uso do dispositivo |
+
+---
+
+## 7. Estrutura de módulos sugerida
+
+```
+src/
+  captacao/             domain/  application/  infrastructure/
+  pacientes/
+  atendimento-clinico/
+  agenda/
+  planos-e-cobranca/
+  gestao-financeira/
+  recibos-e-convenios/
+  contratos-e-consentimento/
+  equipamentos/
+  comunicacao/
+  identidade-e-acesso/
+  compartilhado/        (VOs genéricos: Dinheiro, CPF, Período; barramento de eventos)
+  infraestrutura/       (sincronização, auditoria, arquivos, documentos)
+```
+
+Dentro de cada módulo, a regra de dependência da Clean Architecture: `domain` não depende de nada; `application` (casos de uso) depende de `domain`; `infrastructure` implementa as **portas**.
+
+**Portas previstas:** `CanalDeMensagem`, `GatewayDePagamento` (futuro), `Autenticador`, `CofreDeChaves` (Keychain ou Credential Manager), `ArmazenamentoDeArquivos`, `AssinaturaDigital`, `GeradorDeDocumentos`, `RepositórioLocal`, `SincronizadorRemoto`, `Relógio` (para agendar mensagens e testar prazos).
+
+**Value objects compartilhados:** `Dinheiro` (guardar em centavos, nunca em decimal), `Percentual`, `CPF`, `PeríodoDeTempo`.
+
+---
+
+## 8. Ordem sugerida de construção
+
+1. **Identidade e Acesso** + **Pacientes**
+2. **Atendimento Clínico**, começando pela Avaliação offline (prioridade máxima)
+3. **Agenda**, com bloqueio de duplicidade e série fixa
+4. **Planos e Cobrança**, com sinal e Política de Ausência
+5. **Contratos e Consentimento** (bloqueio de mídia)
+6. **Gestão Financeira**
+7. **Comunicação**
+8. **Equipamentos**, **Recibos e Convênios**, **Captação**
+
+---
+
+## 9. Pontos em aberto descobertos na modelagem
+
+- [ ] **"Acerto quinzenal e mensal":** é só o fechamento interno do financeiro ou também a periodicidade de pagamento do paciente (parcelas)? Em qual modalidade? Isso muda a Cobrança
+- [ ] **Repescagem após 48h:** a mensagem deve ser cancelada se o paciente já fechou plano ou agendou sessão nesse intervalo?
+- [ ] **Janela de 3 dias:** conta a partir da data original do agendamento?
+- [ ] **Momento do travamento do valor:** assumi que, para pacote e plano, o valor trava ao registrar o plano, e na avulsa ao executar o atendimento. Confirmar
+- [ ] **Quem dispara as mensagens automáticas** com o app fechado: exige um agendador no servidor, o que depende da decisão do canal (WhatsApp Business API)
+- [ ] **Escala numérica do nível de dor** no protocolo da sessão (ex.: 0 a 10)
+- [ ] **Política de acesso:** tempo de bloqueio por inatividade, limite de dias offline e tentativas de senha (ver seção 6 do documento de arquitetura técnica)
