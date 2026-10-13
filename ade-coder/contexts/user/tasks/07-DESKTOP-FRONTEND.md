@@ -390,7 +390,7 @@
 ---
 
 ### TASK-087: `MfaConfigurarTela` — QR code e códigos de recuperação (UC-03, UC-04)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 329 testes, vue-tsc e oxlint limpos (qrcode real roda no jsdom). Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-085
 - **Objetivo**: Configurar o TOTP no primeiro login (RN-07) e mostrar os 10 códigos de recuperação uma única vez (RN-08).
 - **Arquivos permitidos**: `src/acesso/ui/telas/MfaConfigurarTela.vue` (substituir placeholder), `src/acesso/ui/componentes/QrCodeAutenticador.vue`, `src/acesso/ui/componentes/ListaDeCodigosDeRecuperacao.vue` (novos) e `.spec.ts` dos três
@@ -428,7 +428,7 @@
 ---
 
 ### TASK-088: `MfaVerificarTela` — código do autenticador ou de recuperação (UC-05)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 329 testes, vue-tsc e oxlint limpos (qrcode real roda no jsdom). Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-087
 - **Objetivo**: Concluir o login (RN-11) e direcionar para o próximo passo (senha mestre, desbloqueio ou início).
 - **Arquivos permitidos**: `src/acesso/ui/telas/MfaVerificarTela.vue` (substituir placeholder), `.spec.ts` (novo)
