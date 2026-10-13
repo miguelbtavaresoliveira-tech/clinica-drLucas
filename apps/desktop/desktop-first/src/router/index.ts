@@ -5,6 +5,10 @@ import {
   type Router,
   type RouterHistory,
 } from "vue-router";
+import { destinoPara, type NomeDaRota } from "../acesso/application/fluxo-de-acesso";
+import { useEstadoDoAcesso } from "../acesso/application/estado-do-acesso";
+import { useFluxoDeLogin } from "../acesso/application/fluxo-de-login";
+import type { EstadoDoAcesso } from "../acesso/application/tipos";
 
 export const rotas: RouteRecordRaw[] = [
   { path: "/", name: "inicio", component: () => import("../acesso/ui/telas/InicioTela.vue") },
@@ -57,6 +61,46 @@ export const rotas: RouteRecordRaw[] = [
   { path: "/:caminho(.*)*", redirect: { name: "inicio" } },
 ];
 
-export function criarRoteador(historico: RouterHistory = createWebHashHistory()): Router {
-  return createRouter({ history: historico, routes: rotas });
+export interface DependenciasDoGuard {
+  /** Estado atual (null = ainda não carregado) e carregamento sob demanda. */
+  estado: () => EstadoDoAcesso | null;
+  carregar: () => Promise<EstadoDoAcesso>;
+  mfaPendente: () => "configurar" | "verificar" | null;
+}
+
+/**
+ * Evita telas sem sentido para a situação atual. Não é controle de acesso: a autorização
+ * real fica no Rust e no servidor.
+ */
+export function instalarGuard(roteador: Router, deps: DependenciasDoGuard): void {
+  roteador.beforeEach(async (para) => {
+    if (typeof para.name !== "string") return true;
+    let estado = deps.estado();
+    if (estado === null) {
+      try {
+        estado = await deps.carregar();
+      } catch {
+        return true;
+      }
+    }
+    const destino = destinoPara(para.name as NomeDaRota, { estado, mfaPendente: deps.mfaPendente() });
+    return destino === null ? true : { name: destino };
+  });
+}
+
+/** Sem `deps` o roteador não tem guard (testes de resolução de rotas). */
+export function criarRoteador(
+  historico: RouterHistory = createWebHashHistory(),
+  deps?: DependenciasDoGuard,
+): Router {
+  const roteador = createRouter({ history: historico, routes: rotas });
+  if (deps !== undefined) instalarGuard(roteador, deps);
+  return roteador;
+}
+
+/** Guard ligado aos singletons reais (usado por `main.ts`). */
+export function dependenciasReaisDoGuard(): DependenciasDoGuard {
+  const { estado, carregar } = useEstadoDoAcesso();
+  const { mfa } = useFluxoDeLogin();
+  return { estado: () => estado.value, carregar, mfaPendente: () => mfa.value };
 }

@@ -168,7 +168,7 @@
 ---
 
 ### TASK-082: Application — estado do acesso, fluxo de login, regras de rota e validações
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 172 testes, vue-tsc, oxlint e build limpos; tabela destinoPara com 47 linhas; guard em router/index.ts recebe dependências (sem deps = sem guard, para os testes de rotas))
 - **Depende de**: TASK-081
 - **Objetivo**: Concentrar as decisões de navegação e validação em TypeScript puro e testável; ligar o guard do roteador.
 - **Arquivos permitidos**: `src/acesso/application/fluxo-de-acesso.ts`, `estado-do-acesso.ts`, `fluxo-de-login.ts`, `validacoes.ts` e seus `.spec.ts` (novos); `src/router/index.ts` (editar: adicionar `beforeEach`)

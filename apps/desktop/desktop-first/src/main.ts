@@ -8,6 +8,6 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "./styles/tema.css";
 import App from "./App.vue";
-import { criarRoteador } from "./router";
+import { criarRoteador, dependenciasReaisDoGuard } from "./router";
 
-createApp(App).use(criarRoteador()).mount("#app");
+createApp(App).use(criarRoteador(undefined, dependenciasReaisDoGuard())).mount("#app");
