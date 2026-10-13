@@ -267,7 +267,7 @@
 ---
 
 ### TASK-084: `AuthLayout` — split screen institucional do Figma
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 252 testes, vue-tsc, oxlint e build limpos. Descrição institucional sem a menção a WhatsApp (D-002). Screenshots 1024x700/1440x900 ficam para a captura geral da TASK-095)
 - **Depende de**: TASK-083
 - **Objetivo**: Reproduzir o layout do Figma (barra superior, cartão dividido 46%/54%, painel institucional à esquerda, slot à direita, rodapé) com as remoções de D-002.
 - **Arquivos permitidos** (novos, em `src/acesso/ui/`): `layout/AuthLayout.vue`, `layout/PainelInstitucional.vue`, `layout/conteudo-institucional.ts`, `componentes/IndicadorConexao.vue` e `.spec.ts` para `AuthLayout` e `IndicadorConexao`
