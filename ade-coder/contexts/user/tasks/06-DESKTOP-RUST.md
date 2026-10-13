@@ -450,7 +450,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-066: Relógio com marca d'água e modo offline (UL-08, RN-21, DT-12)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (68 no módulo) validados no WSL2)
 - **Depende de**: TASK-065
 - **Objetivo**: Calcular `normal` / `somente_leitura` / `offline_expirado` pelo limite de dias e por relógio retrocedido.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/relogio.rs`, `src-tauri/src/acesso_local/modo_offline.rs` (novos); `servico.rs`, `mod.rs` (editar)

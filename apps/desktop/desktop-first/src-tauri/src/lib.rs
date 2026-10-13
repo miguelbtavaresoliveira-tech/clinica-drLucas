@@ -7,7 +7,8 @@ pub mod acesso_local;
 use acesso_local::cofre_so::KeyringCofre;
 use acesso_local::comandos::{self, EstadoTauri};
 use acesso_local::cripto::PARAMETROS_MINIMOS;
-use acesso_local::servico::{RelogioDoSistema, ServicoDeAcessoLocal};
+use acesso_local::relogio::RelogioDoSistema;
+use acesso_local::servico::ServicoDeAcessoLocal;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

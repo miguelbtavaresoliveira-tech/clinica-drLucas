@@ -12,22 +12,14 @@ use super::cofre_so::CofreDeChavesDoSo;
 use super::cripto::{self, Chave, ParametrosArgon2};
 use super::erros::ErroDeAcesso;
 use super::estado::{EstadoDoAcesso, MotivoDeBloqueio, Situacao, UsuarioResumo};
+use super::modo_offline::{self, PoliticaLocal};
+use super::relogio::Relogio;
 
 const MIN_CARACTERES_SENHA: usize = 12;
 const MAX_CARACTERES_SENHA: usize = 128;
-
-/// Provisório: a TASK-066 move este trait para `relogio.rs`.
-pub trait Relogio: Send + Sync {
-    fn agora(&self) -> DateTime<Utc>;
-}
-
-pub struct RelogioDoSistema;
-
-impl Relogio for RelogioDoSistema {
-    fn agora(&self) -> DateTime<Utc> {
-        Utc::now()
-    }
-}
+const CHAVE_ULTIMO_CHECKIN: &str = "ultimo_checkin";
+const CHAVE_MARCA_DAGUA: &str = "marca_dagua";
+const CHAVE_POLITICA: &str = "politica";
 
 pub struct ServicoDeAcessoLocal {
     diretorio: PathBuf,
@@ -129,7 +121,7 @@ impl ServicoDeAcessoLocal {
         self.dek = Some(dek);
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
-        Ok(self.montar_estado(&persistido))
+        self.reavaliar_modo()
     }
 
     /// UL-02: desbloqueio com atraso persistido (RN-27). Nunca apaga dados por falha (RN-28).
@@ -201,7 +193,51 @@ impl ServicoDeAcessoLocal {
         self.dek = Some(dek);
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
-        Ok(self.montar_estado(&persistido))
+        self.reavaliar_modo()
+    }
+
+    /// Política vinda do banco (gravada no login) ou o padrão.
+    pub fn politica(&self) -> PoliticaLocal {
+        self.banco
+            .as_ref()
+            .and_then(|banco| banco.ler_valor(CHAVE_POLITICA).ok().flatten())
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default()
+    }
+
+    /// Reavalia o modo offline: avalia primeiro e só depois avança a marca d'água (DT-12).
+    pub fn reavaliar_modo(&mut self) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        let agora = self.relogio.agora();
+        let politica = self.politica();
+        let banco = self.banco.as_ref().ok_or(ErroDeAcesso::Bloqueado)?;
+        let ultimo_checkin = match ler_instante(banco, CHAVE_ULTIMO_CHECKIN)? {
+            Some(instante) => instante,
+            None => {
+                // Primeiro acesso: o login acabou de acontecer. Gravar para que o prazo passe a correr.
+                banco.gravar_valor(CHAVE_ULTIMO_CHECKIN, &agora.to_rfc3339())?;
+                agora
+            }
+        };
+        let marca_dagua = ler_instante(banco, CHAVE_MARCA_DAGUA)?;
+        let nova = modo_offline::avaliar(agora, ultimo_checkin, marca_dagua, &politica);
+        banco.gravar_valor(
+            CHAVE_MARCA_DAGUA,
+            &modo_offline::nova_marca_dagua(marca_dagua, agora).to_rfc3339(),
+        )?;
+
+        let entrou_em_restricao =
+            nova != Situacao::Normal && self.situacao_desbloqueada == Situacao::Normal;
+        self.situacao_desbloqueada = nova;
+        if entrou_em_restricao {
+            let mut persistido = armazenamento::ler(&self.diretorio)?;
+            persistido.auditoria_pendente.push(RegistroPendente {
+                tipo: "modo-somente-leitura".to_owned(),
+                ocorrido_em: agora,
+                detalhe: Default::default(),
+            });
+            armazenamento::salvar(&self.diretorio, &persistido)?;
+        }
+        self.estado()
     }
 
     /// UL-04: descarta banco e DEK da memória. Idempotente. Não apaga nenhum arquivo.
@@ -250,12 +286,21 @@ impl ServicoDeAcessoLocal {
     }
 }
 
+fn ler_instante(banco: &BancoLocal, chave: &str) -> Result<Option<DateTime<Utc>>, ErroDeAcesso> {
+    match banco.ler_valor(chave)? {
+        Some(texto) => DateTime::parse_from_rfc3339(&texto)
+            .map(|instante| Some(instante.with_timezone(&Utc)))
+            .map_err(|_| ErroDeAcesso::Interno),
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod testes {
     use super::*;
     use crate::acesso_local::banco_local::NOME_DO_BANCO;
     use crate::acesso_local::cofre_so::CofreEmMemoria;
-    use std::sync::Mutex;
+    use crate::acesso_local::relogio::RelogioFixo;
     use tempfile::{TempDir, tempdir};
 
     const SENHA: &str = "senha-mestre-bem-forte";
@@ -265,25 +310,9 @@ mod testes {
         p: 1,
     };
 
-    struct RelogioDeTeste(Mutex<DateTime<Utc>>);
-
-    impl RelogioDeTeste {
-        fn avancar(&self, segundos: i64) {
-            if let Ok(mut agora) = self.0.lock() {
-                *agora += Duration::seconds(segundos);
-            }
-        }
-    }
-
-    impl Relogio for RelogioDeTeste {
-        fn agora(&self) -> DateTime<Utc> {
-            *self.0.lock().unwrap()
-        }
-    }
-
     struct Ambiente {
         pasta: TempDir,
-        relogio: Arc<RelogioDeTeste>,
+        relogio: Arc<RelogioFixo>,
         cofre: Arc<CofreEmMemoria>,
     }
 
@@ -292,9 +321,9 @@ mod testes {
             use chrono::TimeZone;
             Self {
                 pasta: tempdir().unwrap(),
-                relogio: Arc::new(RelogioDeTeste(Mutex::new(
+                relogio: Arc::new(RelogioFixo::novo(
                     Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap(),
-                ))),
+                )),
                 cofre: Arc::new(CofreEmMemoria::novo()),
             }
         }
@@ -313,7 +342,7 @@ mod testes {
             let erro = servico
                 .desbloquear_com_senha("senha-errada-123")
                 .unwrap_err();
-            self.relogio.avancar(700);
+            self.relogio.avancar(Duration::seconds(700));
             erro
         }
     }
@@ -402,7 +431,7 @@ mod testes {
         ));
         assert_eq!(servico.estado().unwrap().segundos_ate_nova_tentativa, 5);
 
-        ambiente.relogio.avancar(5);
+        ambiente.relogio.avancar(Duration::seconds(5));
         assert!(servico.desbloquear_com_senha(SENHA).is_ok());
     }
 
@@ -555,7 +584,7 @@ mod testes {
         ));
         servico.marcar_reautenticado();
         assert!(servico.garantir_reautenticacao_recente(5).is_ok());
-        ambiente.relogio.avancar(5 * 60 + 1);
+        ambiente.relogio.avancar(Duration::seconds(5 * 60 + 1));
         assert!(matches!(
             servico.garantir_reautenticacao_recente(5),
             Err(ErroDeAcesso::ReautenticacaoNecessaria)
@@ -569,6 +598,105 @@ mod testes {
                 .desbloquear_com_senha("senha-errada-123")
                 .unwrap_err()
         }
+    }
+
+    #[test]
+    fn checkin_antigo_ao_desbloquear_vira_somente_leitura() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        let antigo = ambiente.relogio.agora() - Duration::days(6);
+        servico
+            .banco()
+            .unwrap()
+            .gravar_valor("ultimo_checkin", &antigo.to_rfc3339())
+            .unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+
+        let estado = servico.desbloquear_com_senha(SENHA).unwrap();
+        assert_eq!(estado.situacao, Situacao::SomenteLeitura);
+        assert!(matches!(
+            servico.garantir_escrita(),
+            Err(ErroDeAcesso::SomenteLeitura)
+        ));
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(
+            disco.auditoria_pendente.last().unwrap().tipo,
+            "modo-somente-leitura"
+        );
+    }
+
+    #[test]
+    fn politica_sem_leitura_apos_limite_expira_o_acesso() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        let banco = servico.banco().unwrap();
+        let politica = PoliticaLocal {
+            leitura_permitida_apos_limite: false,
+            ..PoliticaLocal::default()
+        };
+        banco
+            .gravar_valor("politica", &serde_json::to_string(&politica).unwrap())
+            .unwrap();
+        let antigo = ambiente.relogio.agora() - Duration::days(6);
+        banco
+            .gravar_valor("ultimo_checkin", &antigo.to_rfc3339())
+            .unwrap();
+        assert_eq!(servico.politica(), politica);
+        assert_eq!(
+            servico.reavaliar_modo().unwrap().situacao,
+            Situacao::OfflineExpirado
+        );
+        assert!(matches!(
+            servico.garantir_escrita(),
+            Err(ErroDeAcesso::SomenteLeitura)
+        ));
+    }
+
+    #[test]
+    fn relogio_retrocedido_vira_somente_leitura_e_a_marca_nao_diminui() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        let marca = ambiente.relogio.agora();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+
+        ambiente.relogio.definir(marca - Duration::minutes(1));
+        let estado = servico.desbloquear_com_senha(SENHA).unwrap();
+        assert_eq!(estado.situacao, Situacao::SomenteLeitura);
+        let gravada = servico
+            .banco()
+            .unwrap()
+            .ler_valor("marca_dagua")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            DateTime::parse_from_rfc3339(&gravada)
+                .unwrap()
+                .with_timezone(&Utc),
+            marca
+        );
+    }
+
+    #[test]
+    fn primeiro_acesso_grava_o_checkin_e_fica_normal() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        assert_eq!(
+            servico.configurar(SENHA).unwrap().situacao,
+            Situacao::Normal
+        );
+        assert!(
+            servico
+                .banco()
+                .unwrap()
+                .ler_valor("ultimo_checkin")
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(servico.politica(), PoliticaLocal::default());
+        assert!(servico.garantir_escrita().is_ok());
     }
 
     #[test]
