@@ -31,7 +31,7 @@
 ---
 
 ### TASK-010: Base do domínio — agregado, eventos, erros e identificadores
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-002
 - **Objetivo**: Criar as peças comuns usadas por todo o domínio: classe base de agregado com fila de eventos, contrato de evento, hierarquia de erros tipados (DT-14) e IDs UUID tipados.
 - **Arquivos permitidos** (todos novos, em `backend/src/identidade-e-acesso/domain/`): `comum/agregado.ts`, `comum/evento-de-dominio.ts`, `comum/erro-de-dominio.ts`, `comum/identificador-uuid.ts`, `erros.ts`, `usuario/usuario-id.ts`, `dispositivo/dispositivo-id.ts`, `sessao-de-login/sessao-de-login-id.ts`, `comum/agregado.spec.ts`, `comum/identificador-uuid.spec.ts`, `erros.spec.ts`
@@ -138,7 +138,7 @@
 ---
 
 ### TASK-011: Value objects do usuário — Email, HashDeSenha, CodigoDeRecuperacao, SegredoTotpCifrado
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-010
 - **Objetivo**: Encapsular as regras de formato de e-mail (RN-02), hash de senha (RN-06), códigos de recuperação de uso único (RN-08) e segredo TOTP cifrado (DT-03).
 - **Arquivos permitidos** (novos, em `domain/usuario/`): `email.ts`, `hash-de-senha.ts`, `codigo-de-recuperacao.ts`, `segredo-totp-cifrado.ts` e um `.spec.ts` para cada um
@@ -202,7 +202,7 @@
 ---
 
 ### TASK-012: Permissões, papéis, `ContextoDeAcesso` e `PoliticaDeAcesso`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-010
 - **Objetivo**: Implementar o modelo de autorização `contexto:ação` (RN-30, RN-31, DT-15) e a política configurável (SPEC §2, §5.2).
 - **Arquivos permitidos** (novos, em `domain/acesso/`): `permissao.ts`, `papel.ts`, `contexto-de-acesso.ts`, `politica-de-acesso.ts` e um `.spec.ts` para cada
@@ -266,7 +266,7 @@
 ---
 
 ### TASK-013: Eventos de domínio e tipo `Plataforma`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-010
 - **Objetivo**: Declarar todos os eventos do contexto (SPEC §5.3 + D-011) como classes imutáveis.
 - **Arquivos permitidos**: `domain/dispositivo/plataforma.ts`, `domain/eventos.ts`, `domain/eventos.spec.ts` (novos)
@@ -317,7 +317,7 @@
 ---
 
 ### TASK-014: Agregado `Usuario`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-011, TASK-012, TASK-013
 - **Objetivo**: Implementar o agregado raiz com as regras RN-02, 04, 07, 08, 10, 13 e a reconfiguração de MFA (D-010).
 - **Arquivos permitidos**: `domain/usuario/usuario.ts`, `domain/usuario/usuario.spec.ts` (novos)
@@ -420,7 +420,7 @@
 ---
 
 ### TASK-015: Agregado `Dispositivo`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-013
 - **Objetivo**: Implementar o dispositivo com check-in, limite offline e revogação (RN-17, 19, 20, 21; D-006 chave pública de auditoria).
 - **Arquivos permitidos**: `domain/dispositivo/dispositivo.ts`, `domain/dispositivo/dispositivo.spec.ts` (novos)
@@ -481,7 +481,7 @@
 ---
 
 ### TASK-016: Agregado `SessaoDeLogin`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-013, TASK-012
 - **Objetivo**: Implementar a sessão com refresh rotativo e detecção de reutilização (RN-14, RN-15, DT-04, D-014).
 - **Arquivos permitidos**: `domain/sessao-de-login/sessao-de-login.ts`, `domain/sessao-de-login/sessao-de-login.spec.ts` (novos)
@@ -535,7 +535,7 @@
 ---
 
 ### TASK-017: Serviços de domínio e barrel `index.ts`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint do domínio limpos; pureza vazia)
 - **Depende de**: TASK-014, TASK-015, TASK-016
 - **Objetivo**: Implementar `PoliticaDeSenha` (RN-05), `PoliticaDeProprietario` (RN-03), `PoliticaDeLimiteDeDispositivos` (RN-18), `AvaliadorDeModoOffline` (RN-21, DT-12) e expor todo o domínio por um único ponto de importação.
 - **Arquivos permitidos** (novos): `domain/servicos/politica-de-senha.ts`, `domain/servicos/politica-de-proprietario.ts`, `domain/servicos/politica-de-limite-de-dispositivos.ts`, `domain/servicos/avaliador-de-modo-offline.ts`, um `.spec.ts` para cada, `domain/index.ts`

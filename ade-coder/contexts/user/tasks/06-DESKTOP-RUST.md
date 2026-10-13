@@ -88,7 +88,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-060: Dependências Rust, esqueleto do módulo e tipo de erro
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (6) e cargo audit sem vulnerabilidades, validados no WSL2)
 - **Depende de**: TASK-006
 - **Objetivo**: Preparar o crate com as bibliotecas da SPEC §7.2, remover o comando de exemplo `greet` e definir o erro serializável único.
 - **Arquivos permitidos**: `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`, `src-tauri/src/acesso_local/mod.rs`, `src-tauri/src/acesso_local/erros.rs`, `src-tauri/src/acesso_local/comandos.rs` (novos os três últimos)
@@ -170,7 +170,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-061: `cripto.rs` — DEK, Argon2id e embrulho AES-256-GCM
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (10 novos) validados no WSL2)
 - **Depende de**: TASK-060
 - **Objetivo**: Implementar a hierarquia de chaves (DT-07) e a derivação calibrada (DT-09).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/cripto.rs` (novo), `mod.rs` (só `pub mod cripto;`)
@@ -216,7 +216,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-062: `armazenamento.rs` — `acesso_local.json` e política de atraso
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (10 novos) validados no WSL2)
 - **Depende de**: TASK-061
 - **Objetivo**: Persistir fora do banco cifrado o que é preciso antes de desbloquear, inclusive o contador de falhas que **sobrevive a reinício** (RN-27).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/armazenamento.rs` (novo), `mod.rs` (só `pub mod armazenamento;`)
@@ -274,7 +274,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-063: `cofre_so.rs` — porta `CofreDeChavesDoSo` com Keychain/Credential Manager
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (testes em memória, fmt e clippy OK no WSL2; falta rodar `EVO_TESTAR_KEYRING=1 cargo test acesso_local::cofre_so` no Windows/macOS)
 - **Depende de**: TASK-060
 - **Objetivo**: Guardar refresh token, chave de auditoria e chave de biometria no cofre do sistema (DT-05, DT-13, SPEC §6.1 porta `CofreDeChavesDoSo`).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/cofre_so.rs` (novo), `mod.rs` (só `pub mod cofre_so;`)
@@ -316,7 +316,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-064: `banco_local.rs` — SQLCipher com a DEK
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (6 novos) validados no WSL2)
 - **Depende de**: TASK-061
 - **Objetivo**: Abrir/fechar o banco local cifrado (porta `BancoLocal`) e criar as tabelas do contexto (`estado_de_acesso`, `auditoria_local`).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/banco_local.rs` (novo), `mod.rs` (só `pub mod banco_local;`)
@@ -370,7 +370,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-065: `ServicoDeAcessoLocal` — configurar, desbloquear com senha, bloquear, estado (UL-01, UL-02, UL-04)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (53 no módulo) e cargo build validados no WSL2)
 - **Depende de**: TASK-062, TASK-063, TASK-064
 - **Objetivo**: O app sempre abre bloqueado (RN-23); a senha mestre é definida no primeiro acesso e nunca vai ao servidor (RN-24); falhas com atraso persistido e login completo após 10 (RN-27); nunca apagar dados por falha (RN-28).
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/estado.rs`, `src-tauri/src/acesso_local/servico.rs` (novos); `comandos.rs`, `lib.rs`, `mod.rs` (editar)
@@ -450,7 +450,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-066: Relógio com marca d'água e modo offline (UL-08, RN-21, DT-12)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (68 no módulo) validados no WSL2)
 - **Depende de**: TASK-065
 - **Objetivo**: Calcular `normal` / `somente_leitura` / `offline_expirado` pelo limite de dias e por relógio retrocedido.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/relogio.rs`, `src-tauri/src/acesso_local/modo_offline.rs` (novos); `servico.rs`, `mod.rs` (editar)
@@ -494,7 +494,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-067: Bloqueio por inatividade e suspensão (RN-26, DT-11)
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (fmt/clippy/test (77 no módulo) e cargo build OK no WSL2; falta o teste manual com pnpm tauri dev e POLITICA_INATIVIDADE_MIN=1)
 - **Depende de**: TASK-066
 - **Objetivo**: Timer de inatividade **no Rust**; o Vue só envia sinais de atividade. Bloquear também ao suspender o computador e reavaliar o modo offline a cada hora.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/inatividade.rs` (novo); `servico.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)
@@ -538,7 +538,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-068: Auditoria local encadeada e assinada (UL-11, RN-37, RN-39, DT-13, D-009)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (vetores D-009 batem byte a byte; fmt/clippy/test (91 no módulo) validados no WSL2)
 - **Depende de**: TASK-066
 - **Objetivo**: Gravar registros locais encadeados por hash e assinados com Ed25519, no formato canônico idêntico ao servidor.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/auditoria.rs` (novo); `servico.rs`, `mod.rs` (editar)
@@ -591,7 +591,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-069: `SessaoRemota` — chamadas à API pelo Rust, tokens fora do JS (D-005, DT-05, UL-09, RN-20)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (116 no módulo, com mockito) e cargo audit validados no WSL2)
 - **Depende de**: TASK-068
 - **Objetivo**: Implementar login, MFA, renovação, logout, redefinição e requisições autenticadas com o refresh no Keychain e o access só em memória; tratar revogação do dispositivo.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/sessao_remota.rs` (novo); `servico.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)
@@ -667,7 +667,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-070: Envio da auditoria local com prioridade na reconexão (RN-39)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (123 no módulo, 7 novos com mockito) validados no WSL2)
 - **Depende de**: TASK-069
 - **Objetivo**: Enviar os registros locais pendentes ao `POST /auditoria/lote` logo após cada renovação/login bem-sucedido.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/envio_de_auditoria.rs` (novo); `sessao_remota.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)
@@ -703,7 +703,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-071: Reautenticação local e troca da senha mestre (UL-06, UL-07, RN-29)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (133 no módulo, 10 novos) validados no WSL2; biometria segue para a TASK-073)
 - **Depende de**: TASK-068
 - **Objetivo**: Abrir a janela de 5 min para ações sensíveis e trocar a senha mestre sem recifrar o banco (DT-07).
 - **Arquivos permitidos**: `servico.rs`, `comandos.rs`, `lib.rs` (editar)
@@ -743,7 +743,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-072: Spike de biometria no desktop (DT-10) — somente documento
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (documento com 7 seções e recomendação B; falta executar a seção 4 em macOS assinado e Windows com Hello, pois nenhum dos dois pôde ser testado aqui)
 - **Depende de**: TASK-063
 - **Objetivo**: Decidir com evidência se a biometria (Touch ID no macOS, Windows Hello no Windows) é viável agora ou se fica o plano B (só senha mestre). **Nenhum código de produção.**
 - **Arquivos permitidos**: `docs/spikes/biometria-desktop.md` (novo). Código experimental só fora do repositório (ou numa branch descartável não enviada).
@@ -772,7 +772,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-073: Porta `BiometriaLocal` (plano B), redefinição do desbloqueio local e do computador revogado (UL-03, UL-05, UL-10, RN-25, RN-35)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (146 no total), cargo build e cargo audit validados no WSL2; 23 comandos do frontend registrados)
 - **Depende de**: TASK-070, TASK-071, TASK-072
 - **Objetivo**: Deixar a biometria pronta atrás de uma porta (implementação "indisponível" até a decisão do spike) e implementar a redefinição do desbloqueio local quando a senha mestre for esquecida e a limpeza de um computador revogado.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/biometria.rs` (novo); `servico.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)

@@ -45,7 +45,7 @@
 ---
 
 ### TASK-020: Portas, tipos de auditoria, serialização canônica e utilitários
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; camadas sem violação)
 - **Depende de**: TASK-017
 - **Objetivo**: Declarar todas as interfaces que a infraestrutura implementará (SPEC §6.1 com os ajustes de D-006/D-008/D-013), os tipos de auditoria e a serialização canônica (D-009).
 - **Arquivos permitidos** (novos, em `backend/src/identidade-e-acesso/application/`):
@@ -209,7 +209,7 @@
 ---
 
 ### TASK-021: Fakes em memória (repositórios, UoW com rollback e adaptadores)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; camadas sem violação)
 - **Depende de**: TASK-020
 - **Objetivo**: Prover implementações em memória fiéis às portas para testar os casos de uso sem banco (SPEC §9 — Aplicação).
 - **Arquivos permitidos** (novos, em `backend/test/identidade-e-acesso/fakes/`): `repositorios-em-memoria.ts`, `unidade-de-trabalho-em-memoria.ts`, `relogio-fixo.ts`, `hasher-falso.ts`, `servico-totp-falso.ts`, `cofre-falso.ts`, `emissor-de-tokens-falso.ts`, `enviador-de-email-falso.ts`, `barramento-falso.ts`, `gerador-de-codigos-falso.ts`, `cripto-de-teste.ts`, `ambiente-de-teste.ts`, `index.ts`, `fakes.spec.ts`
@@ -272,7 +272,7 @@
 ---
 
 ### TASK-022: `Auditor` — eventos de domínio → registros de auditoria
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; camadas sem violação)
 - **Depende de**: TASK-021
 - **Objetivo**: Traduzir eventos em registros de auditoria do servidor (RN-37, RN-38) num único lugar.
 - **Arquivos permitidos**: `application/auditoria/auditor.ts`, `application/auditoria/auditor.spec.ts` (novos); `test/identidade-e-acesso/fakes/ambiente-de-teste.ts` (adicionar o campo `auditor: new Auditor()`)
@@ -326,7 +326,7 @@
 ---
 
 ### TASK-023: Utilitários de desafio e verificação de MFA
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; camadas sem violação)
 - **Depende de**: TASK-022
 - **Objetivo**: Centralizar a validação do desafio de login (UC-03/04/05) e a verificação de código TOTP/recuperação (RN-09, RN-10), usadas por vários casos de uso.
 - **Arquivos permitidos**: `application/comum/validacao-de-desafio.ts`, `application/comum/verificador-de-mfa.ts` e seus `.spec.ts` (novos)
@@ -374,7 +374,7 @@
 ---
 
 ### TASK-024: UC-01 `CriarPrimeiroProprietario`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; helpers semearDesafio/semearUsuarioSemMfa adicionados em test/.../fakes/ambiente-de-teste.ts (desvio mínimo))
 - **Depende de**: TASK-023
 - **Objetivo**: Criar o primeiro Proprietário por comando administrativo (RN-01, 02, 05, 06).
 - **Arquivos permitidos**: `application/casos-de-uso/criar-primeiro-proprietario.ts` e `.spec.ts` (novos)
@@ -414,7 +414,7 @@
 ---
 
 ### TASK-025: UC-02 `IniciarLogin`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; helpers semearDesafio/semearUsuarioSemMfa adicionados em test/.../fakes/ambiente-de-teste.ts (desvio mínimo))
 - **Depende de**: TASK-023
 - **Objetivo**: Primeiro passo do login: e-mail + senha → desafio de uso único (RN-11, 12, 13; SPEC §6.4).
 - **Arquivos permitidos**: `application/casos-de-uso/iniciar-login.ts` e `.spec.ts` (novos)
@@ -463,7 +463,7 @@
 ---
 
 ### TASK-026: UC-03 `GerarSegredoDeMfa` e UC-04 `ConfirmarMfa`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; helpers semearDesafio/semearUsuarioSemMfa adicionados em test/.../fakes/ambiente-de-teste.ts (desvio mínimo))
 - **Depende de**: TASK-025
 - **Objetivo**: Configuração obrigatória do TOTP no primeiro login e geração dos 10 códigos de recuperação (RN-07, 08, 10).
 - **Arquivos permitidos**: `application/casos-de-uso/gerar-segredo-de-mfa.ts`, `application/casos-de-uso/confirmar-mfa.ts` e seus `.spec.ts` (novos)
@@ -504,7 +504,7 @@
 ---
 
 ### TASK-027: UC-05 `ConcluirLogin`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; helpers semearDesafio/semearUsuarioSemMfa adicionados em test/.../fakes/ambiente-de-teste.ts (desvio mínimo))
 - **Depende de**: TASK-026
 - **Objetivo**: Segundo passo do login: código TOTP/recuperação → sessão, tokens e dispositivo (RN-07, 09, 10, 13, 15, 17, 18, 20; SPEC §6.4).
 - **Arquivos permitidos**: `application/casos-de-uso/concluir-login.ts` e `.spec.ts` (novos)
@@ -565,7 +565,7 @@
 ---
 
 ### TASK-028: UC-06 `RenovarSessao` e UC-07 `EncerrarSessao`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; helper entrar() adicionado em fakes/ambiente-de-teste.ts)
 - **Depende de**: TASK-027
 - **Objetivo**: Rotação do refresh com detecção de reutilização (RN-14, 15, 19, 20; fluxograma SPEC §6.4) e logout.
 - **Arquivos permitidos**: `application/casos-de-uso/renovar-sessao.ts`, `application/casos-de-uso/encerrar-sessao.ts` e seus `.spec.ts` (novos)
@@ -607,7 +607,7 @@
 ---
 
 ### TASK-029: UC-08 `ListarDispositivos` e UC-09 `RevogarDispositivo`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; helper entrar() adicionado em fakes/ambiente-de-teste.ts)
 - **Depende de**: TASK-028
 - **Objetivo**: Listar e revogar dispositivos com reautenticação (RN-19, 22, 29, 31; D-008).
 - **Arquivos permitidos**: `application/casos-de-uso/listar-dispositivos.ts`, `application/casos-de-uso/revogar-dispositivo.ts` e seus `.spec.ts` (novos)
@@ -644,7 +644,7 @@
 ---
 
 ### TASK-030: UC-10 `TrocarSenha`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc e oxlint limpos; helper entrar() adicionado em fakes/ambiente-de-teste.ts)
 - **Depende de**: TASK-029
 - **Objetivo**: Trocar a senha de login revogando as **outras** sessões (RN-05, 16, 29).
 - **Arquivos permitidos**: `application/casos-de-uso/trocar-senha.ts` e `.spec.ts` (novos)
@@ -673,7 +673,7 @@
 ---
 
 ### TASK-031: UC-11 `SolicitarRedefinicaoDeSenha` e UC-12 `ConcluirRedefinicaoDeSenha`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc, oxlint e build limpos; camadas sem violação)
 - **Depende de**: TASK-030
 - **Objetivo**: "Esqueci a senha" por e-mail com token de uso único de 30 min e exigência de MFA para concluir (RN-12, 16, 33; D-007).
 - **Arquivos permitidos**: `application/casos-de-uso/solicitar-redefinicao-de-senha.ts`, `application/casos-de-uso/concluir-redefinicao-de-senha.ts` e seus `.spec.ts` (novos)
@@ -710,7 +710,7 @@
 ---
 
 ### TASK-032: UC-13 `RegenerarCodigosDeRecuperacao` e UC-16 `ReconfigurarMfa` (iniciar/confirmar)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc, oxlint e build limpos; camadas sem violação)
 - **Depende de**: TASK-031
 - **Objetivo**: Regenerar códigos com reautenticação por TOTP (RN-08, 09; D-008) e reconfigurar o autenticador perdido (RN-34; D-010).
 - **Arquivos permitidos**: `application/casos-de-uso/regenerar-codigos-de-recuperacao.ts`, `application/casos-de-uso/iniciar-reconfiguracao-de-mfa.ts`, `application/casos-de-uso/confirmar-reconfiguracao-de-mfa.ts` e seus `.spec.ts` (novos)
@@ -747,7 +747,7 @@
 ---
 
 ### TASK-033: UC-14 `ReceberAuditoriaDoApp`
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc, oxlint e build limpos; camadas sem violação)
 - **Depende de**: TASK-032
 - **Objetivo**: Receber lotes de auditoria do app, validando encadeamento, hash e assinatura Ed25519 antes de gravar (RN-37, 38, 39; D-006, D-009).
 - **Arquivos permitidos**: `application/casos-de-uso/receber-auditoria-do-app.ts` e `.spec.ts` (novos)
@@ -795,7 +795,7 @@
 ---
 
 ### TASK-034: UC-15 `DesativarUsuario`, `RedefinirAcessoAdministrativo` (RN-36) e barrel da application
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: testes, tsc, oxlint e build limpos; camadas sem violação)
 - **Depende de**: TASK-033
 - **Objetivo**: Desativação com proteção do último proprietário (RN-03, 04) e o "último recurso" administrativo (RN-36).
 - **Arquivos permitidos**: `application/casos-de-uso/desativar-usuario.ts`, `application/casos-de-uso/redefinir-acesso-administrativo.ts`, seus `.spec.ts`, `application/index.ts` (novos)

@@ -55,7 +55,7 @@
 ---
 
 ### TASK-080: Tema (tokens do Figma), roteador e casca do app
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando Revisão]` (worker2, commit 71c1725; aviso do vite sobre import sem extensão em vitest.config.ts, da TASK-005)
 - **Depende de**: TASK-005, TASK-006
 - **Objetivo**: Substituir o template "Tauri + Vue" pela base do app: tokens de design do Figma em Tailwind v4, fontes locais, roteador com as rotas da tabela e `App.vue` mínimo.
 - **Arquivos permitidos**: `src/styles/tema.css` (novo), `src/main.ts`, `src/App.vue`, `src/router/index.ts` (novo), `src/router/rotas.spec.ts` (novo), `src/acesso/ui/telas/*.vue` **somente como placeholders** de uma linha (`<template><h1>Nome da tela</h1></template>`) para cada componente da tabela de rotas; remover `src/assets/vue.svg`, `public/tauri.svg`, `public/vite.svg`
@@ -107,7 +107,7 @@
 ---
 
 ### TASK-081: Infraestrutura — comandos Tauri tipados, erros e mock de E2E
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando Revisão]` (worker2, commit a754c25; @tauri-apps/api 2.12.3; e2e/fixtures/tauri-mock.ts reimplementa o protocolo IPC em vez de reusar @tauri-apps/api/mocks, que só funciona em jsdom — ver comentário no arquivo)
 - **Depende de**: TASK-080
 - **Objetivo**: Um único ponto de acesso ao Rust, tipado conforme o contrato do arquivo 06, com erros normalizados e mensagens amigáveis.
 - **Arquivos permitidos**: `src/acesso/infrastructure/comandos-tauri.ts`, `src/acesso/infrastructure/api-identidade.ts`, `src/acesso/infrastructure/erros.ts`, `src/acesso/application/tipos.ts`, seus `.spec.ts`; `e2e/fixtures/tauri-mock.ts`, `e2e/fixtures/estados.ts` (novos)
@@ -168,7 +168,7 @@
 ---
 
 ### TASK-082: Application — estado do acesso, fluxo de login, regras de rota e validações
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 172 testes, vue-tsc, oxlint e build limpos; tabela destinoPara com 47 linhas; guard em router/index.ts recebe dependências (sem deps = sem guard, para os testes de rotas))
 - **Depende de**: TASK-081
 - **Objetivo**: Concentrar as decisões de navegação e validação em TypeScript puro e testável; ligar o guard do roteador.
 - **Arquivos permitidos**: `src/acesso/application/fluxo-de-acesso.ts`, `estado-do-acesso.ts`, `fluxo-de-login.ts`, `validacoes.ts` e seus `.spec.ts` (novos); `src/router/index.ts` (editar: adicionar `beforeEach`)
@@ -224,7 +224,7 @@
 ---
 
 ### TASK-083: Componentes base acessíveis
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 232 testes, vue-tsc, oxlint e build limpos. Extra: CampoCodigo trata o evento de colar (o maxlength=6 do navegador cortaria '123 456' antes da limpeza); foco inicial adiado para depois do próximo tick)
 - **Depende de**: TASK-080
 - **Objetivo**: Componentes reutilizáveis com o visual do Figma e acessibilidade AA.
 - **Arquivos permitidos** (novos, em `src/acesso/ui/`): `componentes/BaseBotao.vue`, `CampoTexto.vue`, `CampoSenha.vue`, `CampoCodigo.vue`, `AlertaBanner.vue`, `ModalDialogo.vue`, `NotificacaoToast.vue`, `AvatarIniciais.vue`, `composables/useToast.ts`, um `.spec.ts` por componente; `src/App.vue` (editar: incluir `<NotificacaoToast />`)
@@ -267,7 +267,7 @@
 ---
 
 ### TASK-084: `AuthLayout` — split screen institucional do Figma
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 252 testes, vue-tsc, oxlint e build limpos. Descrição institucional sem a menção a WhatsApp (D-002). Screenshots 1024x700/1440x900 ficam para a captura geral da TASK-095)
 - **Depende de**: TASK-083
 - **Objetivo**: Reproduzir o layout do Figma (barra superior, cartão dividido 46%/54%, painel institucional à esquerda, slot à direita, rodapé) com as remoções de D-002.
 - **Arquivos permitidos** (novos, em `src/acesso/ui/`): `layout/AuthLayout.vue`, `layout/PainelInstitucional.vue`, `layout/conteudo-institucional.ts`, `componentes/IndicadorConexao.vue` e `.spec.ts` para `AuthLayout` e `IndicadorConexao`
@@ -314,7 +314,7 @@
 ---
 
 ### TASK-085: `LoginTela` — e-mail e senha (UC-02)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 269 testes, vue-tsc, oxlint e build limpos. Desvio: durante o envio os campos ficam desabilitados (CampoTexto não tem readonly); a tela descarta o desafio anterior ao abrir. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-082, TASK-084
 - **Objetivo**: Primeiro passo do login fiel ao Figma, com erros genéricos (RN-12) e estados de bloqueio/limite.
 - **Arquivos permitidos**: `src/acesso/ui/telas/LoginTela.vue` (substituir placeholder), `src/acesso/ui/telas/LoginTela.spec.ts` (novo)
@@ -354,7 +354,7 @@
 ---
 
 ### TASK-086: Recuperação de senha — modal "Esqueci a senha" e tela "Redefinir senha" (UC-11, UC-12)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 290 testes, vue-tsc e oxlint limpos. Extra: CampoTexto ganhou a prop monoespacado. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-085
 - **Objetivo**: Pedir o e-mail de redefinição (sempre "aceito", RN-12) e concluir com token + nova senha + código MFA (RN-33, D-007).
 - **Arquivos permitidos**: `src/acesso/ui/telas/RecuperarSenhaModal.vue` (novo), `src/acesso/ui/telas/RedefinirSenhaTela.vue` (substituir placeholder), `src/acesso/ui/telas/LoginTela.vue` (editar: abrir o modal), e `.spec.ts` dos dois novos
@@ -390,7 +390,7 @@
 ---
 
 ### TASK-087: `MfaConfigurarTela` — QR code e códigos de recuperação (UC-03, UC-04)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 329 testes, vue-tsc e oxlint limpos (qrcode real roda no jsdom). Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-085
 - **Objetivo**: Configurar o TOTP no primeiro login (RN-07) e mostrar os 10 códigos de recuperação uma única vez (RN-08).
 - **Arquivos permitidos**: `src/acesso/ui/telas/MfaConfigurarTela.vue` (substituir placeholder), `src/acesso/ui/componentes/QrCodeAutenticador.vue`, `src/acesso/ui/componentes/ListaDeCodigosDeRecuperacao.vue` (novos) e `.spec.ts` dos três
@@ -428,7 +428,7 @@
 ---
 
 ### TASK-088: `MfaVerificarTela` — código do autenticador ou de recuperação (UC-05)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 329 testes, vue-tsc e oxlint limpos (qrcode real roda no jsdom). Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-087
 - **Objetivo**: Concluir o login (RN-11) e direcionar para o próximo passo (senha mestre, desbloqueio ou início).
 - **Arquivos permitidos**: `src/acesso/ui/telas/MfaVerificarTela.vue` (substituir placeholder), `.spec.ts` (novo)
@@ -463,7 +463,7 @@
 ---
 
 ### TASK-089: `DefinirSenhaMestreTela` (UL-01)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: suíte completa, vue-tsc, oxlint e build limpos. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-088
 - **Objetivo**: Definir no primeiro acesso a senha mestre que abre os dados deste computador sem internet (RN-24).
 - **Arquivos permitidos**: `src/acesso/ui/telas/DefinirSenhaMestreTela.vue` (substituir placeholder), `.spec.ts` (novo)
@@ -498,7 +498,7 @@
 ---
 
 ### TASK-090: `DesbloqueioTela` e "Esqueci a senha mestre" (UL-02, UL-03, UL-10)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: suíte completa, vue-tsc, oxlint e build limpos. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-089
 - **Objetivo**: Abrir o app offline com senha mestre (ou biometria, se habilitada), respeitando o atraso persistido (RN-27), e oferecer a redefinição local com aviso de perda de eventos (RN-35).
 - **Arquivos permitidos**: `src/acesso/ui/telas/DesbloqueioTela.vue` (substituir placeholder), `src/acesso/ui/telas/RedefinirDesbloqueioModal.vue` (novo), `.spec.ts` dos dois
@@ -538,7 +538,7 @@
 ---
 
 ### TASK-091: Casca do app, sinais de atividade, sessão online e avisos de modo offline (RN-21, RN-26, DT-11)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 393 testes, vue-tsc, oxlint e build limpos. Desvios: composable de ui exportado como useEstadoDoAcessoNaUI (evita colidir com useEstadoDoAcesso da aplicação); ConectarTela sem o número de dias (o estado do Rust não expõe o limite); testTimeout global de 30 s no vitest.config.ts (import a frio das telas). Screenshots na TASK-095)
 - **Depende de**: TASK-090
 - **Objetivo**: Layout das telas autenticadas, envio de atividade ao Rust, reação ao evento `acesso://estado-alterado`, renovação da sessão quando houver internet e o aviso fixo de **modo somente leitura** (SPEC §7.2).
 - **Arquivos permitidos** (em `src/acesso/ui/`): `layout/AppShell.vue`, `telas/InicioTela.vue` (substituir placeholder), `telas/ConectarTela.vue` (substituir placeholder), `componentes/BannerSomenteLeitura.vue`, `componentes/BannerSessao.vue`, `composables/useSinalDeAtividade.ts`, `composables/useEstadoDoAcesso.ts`, `composables/useSessaoOnline.ts`, `.spec.ts` de cada; `src/App.vue` (editar)
@@ -580,7 +580,7 @@
 ---
 
 ### TASK-092: Reautenticação para ações sensíveis (UL-07, RN-29)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 408 testes, vue-tsc e oxlint limpos. Desvios: comReautenticacao só abre o modal para REAUTENTICACAO_NECESSARIA SEM status HTTP (o mesmo código vindo do servidor, com status, é erro do formulário); ModalDialogo ganhou suporte a data-autofocus)
 - **Depende de**: TASK-091
 - **Objetivo**: Um modal único, chamado por código, que pede a senha mestre (ou biometria) e abre a janela de 5 min no Rust.
 - **Arquivos permitidos**: `src/acesso/ui/componentes/ReautenticacaoModal.vue`, `src/acesso/ui/composables/useReautenticacao.ts` (novos) e `.spec.ts` dos dois; `src/acesso/ui/layout/AppShell.vue` (editar: montar o modal uma vez)
@@ -620,7 +620,7 @@
 ---
 
 ### TASK-093: `DispositivosTela` — listar e revogar (UC-08, UC-09)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 424 testes, vue-tsc e oxlint limpos. Screenshots na TASK-095)
 - **Depende de**: TASK-092
 - **Objetivo**: Mostrar os computadores da conta e revogar um deles com reautenticação local + código MFA (RN-22, RN-29, D-008).
 - **Arquivos permitidos**: `src/acesso/ui/telas/DispositivosTela.vue` (substituir placeholder), `src/acesso/ui/telas/RevogarDispositivoModal.vue` (novo), `.spec.ts` dos dois
@@ -656,7 +656,7 @@
 ---
 
 ### TASK-094: `SegurancaTela` — senha, códigos, autenticador, senha mestre e biometria (UC-10, UC-13, UC-16, UL-05, UL-06)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 445 testes, vue-tsc, oxlint e build limpos. Desvio: um único SegurancaTela.spec.ts cobre a tela e os 4 modais (mais a ativação de biometria, feita num ModalDialogo dentro da própria tela). Screenshots na TASK-095)
 - **Depende de**: TASK-093, TASK-087
 - **Objetivo**: Reunir as ações de segurança da conta e do computador, todas com reautenticação local (RN-29).
 - **Arquivos permitidos** (em `src/acesso/ui/telas/`): `SegurancaTela.vue` (substituir placeholder), `TrocarSenhaModal.vue`, `RegenerarCodigosModal.vue`, `ReconfigurarMfaModal.vue`, `AlterarSenhaMestreModal.vue` (novos) e `.spec.ts` de cada
@@ -696,7 +696,7 @@
 ---
 
 ### TASK-095: `DispositivoRevogadoTela` e E2E completo com acessibilidade (UL-09, SPEC §10)
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando verificação manual]` (parte automatizada verificada pelo Claude: 452 testes unitários; E2E no Chromium com 32 testes passando; axe sem violações serious/critical em 8 telas × 3 larguras; 24 capturas em apps/desktop/desktop-first/test-results/telas/ (ignorado pelo git); vue-tsc, oxlint, build e audit limpos. PENDENTE: roteiro manual SPEC §10 com `pnpm tauri dev`, que exige o Rust completo (TASK-060 a 073, `cargo` não instalado). WebKit não abre neste Windows (dependências do sistema): os testes de comportamento rodam só no Chromium aqui. Bundle: chunk inicial 111,9 KB (93,3 KB na TASK-082); soma de JS 311,7 KB; `qrcode` fica em chunk próprio carregado sob demanda. Desvios: mock de Tauri ganhou respostas em sequência e memória do último estado emitido; UI passou a sincronizar o estado com a resposta dos comandos; testTimeout global e asyncUtilTimeout de 5 s.)
 - **Depende de**: TASK-094, TASK-073 (Rust completo — necessário para a verificação manual)
 - **Objetivo**: Tela do computador revogado e a suíte Playwright que percorre o roteiro "Pronto quando" da SPEC §10 com o Tauri simulado, auditoria axe e screenshots.
 - **Arquivos permitidos**: `src/acesso/ui/telas/DispositivoRevogadoTela.vue` (substituir placeholder) e `.spec.ts`; `e2e/primeiro-acesso.spec.ts`, `e2e/desbloqueio.spec.ts`, `e2e/modo-offline-e-revogacao.spec.ts`, `e2e/acessibilidade.spec.ts` (novos)
