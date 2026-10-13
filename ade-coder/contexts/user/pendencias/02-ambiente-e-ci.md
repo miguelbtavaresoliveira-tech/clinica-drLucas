@@ -6,9 +6,7 @@
 - **`gh auth login` não concluído:** o comando foi para segundo plano aguardando o código do dispositivo em https://github.com/login/device. Sem ele não consigo ler o resultado do CI.
 
 ## Falta realizar
-1. Abrir a aba Actions e conferir a primeira execução de `.github/workflows/ci.yml` (commit 661c9e1). Riscos conhecidos:
-   - `test:int` e `test:e2e` do backend podem exigir variáveis além de `DATABASE_URL_TESTE`;
-   - o Keychain do macOS pode pedir autorização interativa num runner sem tela;
+1. CI verde na 1ª execução (run 38474744051, todos os 5 jobs). Só confirmar de novo após novos pushes. Origem: primeira execução de `.github/workflows/ci.yml` (commit 661c9e1). Riscos conhecidos:
    - o job `rust` compila o frontend antes (o Tauri o embute); se o caminho `dist` mudar, ajustar.
 2. Rodar o app completo para analisar a experiência (nunca foi executado de ponta a ponta):
    - Backend (Windows): `docker compose up -d postgres`, `pnpm db:migrar`, `pnpm build`, `pnpm cli:criar-proprietario`, `pnpm start:dev` em `backend/`.
