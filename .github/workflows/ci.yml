@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: apps/desktop/desktop-first/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependências do Tauri (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev libsecret-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/desktop-first/src-tauri
+
+      # O frontend precisa existir porque o Tauri o embute na compilação.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - name: Compilar o frontend
+        working-directory: apps/desktop
+        run: pnpm install --frozen-lockfile && pnpm --filter desktop-first build
+
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+      # TASK-063: exercita o cofre real (Credential Manager no Windows, Keychain no macOS).
+      - name: Cofre do SO real (TASK-063)
+        if: runner.os != 'Linux'
+        env:
+          EVO_TESTAR_KEYRING: "1"
+        run: cargo test acesso_local::cofre_so -- --nocapture
+
+  frontend:
+    name: Desktop (Vue)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/desktop/desktop-first
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test --project=chromium
+
+  backend:
+    name: Backend (NestJS)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: clinica
+          POSTGRES_PASSWORD: senha-de-ci
+          POSTGRES_DB: clinica_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U clinica -d clinica_teste"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL_TESTE: postgres://clinica:senha-de-ci@127.0.0.1:5432/clinica_teste
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:int
+      - run: pnpm test:e2e
