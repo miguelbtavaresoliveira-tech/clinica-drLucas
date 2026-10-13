@@ -435,7 +435,7 @@
 ---
 
 ### TASK-006: Endurecer configuração do Tauri (identificador, janela, CSP)
-- **Status**: `[ ] Pendente`
+- **Status**: `[🔍 Aguardando Revisão]` (worker2, commit b220000)
 - **Depende de**: TASK-005
 - **Objetivo**: Trocar o identificador de template, definir janela adequada ao consultório e ativar uma CSP restritiva (hoje `"csp": null`, o que permite carregar qualquer script remoto).
 - **Arquivos permitidos**: `apps/desktop/desktop-first/src-tauri/tauri.conf.json`, `apps/desktop/desktop-first/index.html`
