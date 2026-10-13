@@ -54,6 +54,12 @@ pub fn run() {
             comandos::enviar_auditoria_pendente,
             comandos::reautenticar,
             comandos::alterar_senha_mestre,
+            comandos::desbloquear_com_biometria,
+            comandos::ativar_biometria,
+            comandos::desativar_biometria,
+            comandos::previa_redefinicao_local,
+            comandos::redefinir_desbloqueio_local,
+            comandos::redefinir_computador_revogado,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

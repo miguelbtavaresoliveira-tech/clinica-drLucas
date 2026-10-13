@@ -2,6 +2,7 @@
 pub mod armazenamento;
 pub mod auditoria;
 pub mod banco_local;
+pub mod biometria;
 pub mod cofre_so;
 pub mod comandos;
 pub mod cripto;

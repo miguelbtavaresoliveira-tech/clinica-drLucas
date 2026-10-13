@@ -307,3 +307,79 @@ pub async fn alterar_senha_mestre(
     emitir_estado_atual(&app, &estado).await;
     resultado
 }
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviaDaRedefinicao {
+    pub eventos_pendentes: u64,
+}
+
+#[tauri::command]
+pub async fn desbloquear_com_biometria(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+    // O prompt do sistema bloqueia a thread; por isso roda fora do runtime assíncrono.
+    let resultado = executar(&estado, |servico| servico.desbloquear_com_biometria()).await;
+    emitir_estado_atual(&app, &estado).await;
+    resultado
+}
+
+#[tauri::command]
+pub async fn ativar_biometria(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+    senha: String,
+) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+    let senha = Zeroizing::new(senha);
+    let resultado = executar(&estado, move |servico| servico.ativar_biometria(&senha)).await;
+    emitir_estado_atual(&app, &estado).await;
+    resultado
+}
+
+#[tauri::command]
+pub async fn desativar_biometria(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+    let resultado = executar(&estado, |servico| servico.desativar_biometria()).await;
+    emitir_estado_atual(&app, &estado).await;
+    resultado
+}
+
+#[tauri::command]
+pub async fn previa_redefinicao_local(
+    estado: State<'_, EstadoTauri>,
+) -> Result<PreviaDaRedefinicao, ErroDeAcesso> {
+    executar(&estado, |servico| servico.previa_redefinicao_local())
+        .await
+        .map(|eventos_pendentes| PreviaDaRedefinicao { eventos_pendentes })
+}
+
+#[tauri::command]
+pub async fn redefinir_desbloqueio_local(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+    confirmacao: String,
+) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+    let resultado = executar(&estado, move |servico| {
+        servico.redefinir_desbloqueio_local(&confirmacao)
+    })
+    .await;
+    emitir_estado_atual(&app, &estado).await;
+    resultado
+}
+
+#[tauri::command]
+pub async fn redefinir_computador_revogado(
+    app: AppHandle,
+    estado: State<'_, EstadoTauri>,
+    confirmacao: String,
+) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+    let resultado = executar(&estado, move |servico| {
+        servico.redefinir_computador_revogado(&confirmacao)
+    })
+    .await;
+    emitir_estado_atual(&app, &estado).await;
+    resultado
+}

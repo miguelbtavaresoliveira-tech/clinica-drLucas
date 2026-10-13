@@ -772,7 +772,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-073: Porta `BiometriaLocal` (plano B), redefinição do desbloqueio local e do computador revogado (UL-03, UL-05, UL-10, RN-25, RN-35)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (146 no total), cargo build e cargo audit validados no WSL2; 23 comandos do frontend registrados)
 - **Depende de**: TASK-070, TASK-071, TASK-072
 - **Objetivo**: Deixar a biometria pronta atrás de uma porta (implementação "indisponível" até a decisão do spike) e implementar a redefinição do desbloqueio local quando a senha mestre for esquecida e a limpeza de um computador revogado.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/biometria.rs` (novo); `servico.rs`, `comandos.rs`, `lib.rs`, `mod.rs` (editar)

@@ -1,4 +1,5 @@
 //! `ServicoDeAcessoLocal`: configurar, desbloquear com senha e bloquear (UL-01, UL-02, UL-04).
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration as DuracaoStd, Instant};
@@ -6,11 +7,15 @@ use std::time::{Duration as DuracaoStd, Instant};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use chrono::{DateTime, Duration, Utc};
+use rand::RngCore;
+use rand::rngs::OsRng;
+use zeroize::Zeroizing;
 
 use super::armazenamento::{self, EstadoPersistido, Kdf, RegistroPendente};
 use super::auditoria::{self, Detalhe, TIPOS_DE_AUDITORIA_DO_APP, ValorDeDetalhe};
-use super::banco_local::BancoLocal;
-use super::cofre_so::{CHAVE_REFRESH, CofreDeChavesDoSo};
+use super::banco_local::{BancoLocal, NOME_DO_BANCO};
+use super::biometria::{BiometriaIndisponivel, BiometriaLocal};
+use super::cofre_so::{CHAVE_AUDITORIA, CHAVE_BIOMETRIA, CHAVE_REFRESH, CofreDeChavesDoSo};
 use super::cripto::{self, Chave, ParametrosArgon2};
 use super::erros::ErroDeAcesso;
 use super::estado::{EstadoDoAcesso, MotivoDeBloqueio, Situacao, UsuarioResumo};
@@ -29,6 +34,7 @@ pub struct ServicoDeAcessoLocal {
     // usado a partir da TASK-068 (chave de auditoria) e da TASK-069 (refresh token)
     cofre: Arc<dyn CofreDeChavesDoSo>,
     relogio: Arc<dyn Relogio>,
+    biometria: Arc<dyn BiometriaLocal>,
     parametros_novos: ParametrosArgon2,
     dek: Option<Chave>,
     banco: Option<BancoLocal>,
@@ -52,6 +58,7 @@ impl ServicoDeAcessoLocal {
             diretorio,
             cofre,
             relogio,
+            biometria: Arc::new(BiometriaIndisponivel),
             parametros_novos,
             dek: None,
             banco: None,
@@ -63,6 +70,12 @@ impl ServicoDeAcessoLocal {
             sessao_online: false,
             usuario: None,
         }
+    }
+
+    /// Troca a implementação de biometria (por padrão, indisponível: plano B do spike).
+    pub fn com_biometria(mut self, biometria: Arc<dyn BiometriaLocal>) -> Self {
+        self.biometria = biometria;
+        self
     }
 
     /// Define os parâmetros do Argon2id usados na próxima `configurar` (resultado de `calibrar`).
@@ -88,7 +101,7 @@ impl ServicoDeAcessoLocal {
         EstadoDoAcesso {
             situacao,
             exige_login_completo: persistido.exige_login_completo,
-            biometria_disponivel: false,
+            biometria_disponivel: self.biometria.disponivel(),
             biometria_habilitada: persistido.dek_por_biometria.is_some(),
             segundos_ate_nova_tentativa: armazenamento::segundos_restantes(
                 persistido,
@@ -194,12 +207,26 @@ impl ServicoDeAcessoLocal {
             });
         };
 
-        persistido.falhas_consecutivas = 0;
-        persistido.ultima_falha_em = None;
+        self.concluir_desbloqueio(dek, persistido, agora, "senha")
+    }
+
+    /// Parte comum do desbloqueio (senha ou biometria): registra, abre o banco e aplica o que estava pendente.
+    /// Só a senha zera o contador de falhas: a biometria não pode apagar o histórico de tentativas de senha.
+    fn concluir_desbloqueio(
+        &mut self,
+        dek: Chave,
+        mut persistido: EstadoPersistido,
+        agora: DateTime<Utc>,
+        metodo: &str,
+    ) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        if metodo == "senha" {
+            persistido.falhas_consecutivas = 0;
+            persistido.ultima_falha_em = None;
+        }
         persistido.auditoria_pendente.push(RegistroPendente {
             tipo: "desbloqueio-local-ok".to_owned(),
             ocorrido_em: agora,
-            detalhe: [("metodo".to_owned(), serde_json::json!("senha"))].into(),
+            detalhe: [("metodo".to_owned(), serde_json::json!(metodo))].into(),
         });
         armazenamento::salvar(&self.diretorio, &persistido)?;
 
@@ -214,6 +241,187 @@ impl ServicoDeAcessoLocal {
         // Melhor esforço: o que não for descarregado continua no arquivo e sai no próximo desbloqueio.
         let _ = self.descarregar_pendentes();
         self.estado()
+    }
+
+    /// UL-03: desbloqueio por biometria. Qualquer falha devolve `BiometriaIndisponivel` e a interface
+    /// volta para a senha mestre, que sempre funciona (RN-25).
+    pub fn desbloquear_com_biometria(&mut self) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        let persistido = armazenamento::ler(&self.diretorio)?;
+        if persistido.kdf.is_none() {
+            return Err(ErroDeAcesso::NaoConfigurado);
+        }
+        if persistido.revogado {
+            return Err(ErroDeAcesso::DispositivoRevogado);
+        }
+        if persistido.exige_login_completo {
+            return Err(ErroDeAcesso::ExigeLoginCompleto);
+        }
+        if self.esta_desbloqueado() {
+            return Ok(self.montar_estado(&persistido));
+        }
+        let embrulhada = persistido
+            .dek_por_biometria
+            .clone()
+            .ok_or(ErroDeAcesso::BiometriaIndisponivel)?;
+        if !self.biometria.disponivel() {
+            return Err(ErroDeAcesso::BiometriaIndisponivel);
+        }
+        let reconhecido = self
+            .biometria
+            .autenticar("Desbloquear a EVO Clínica")
+            .map_err(|_| ErroDeAcesso::BiometriaIndisponivel)?;
+        if !reconhecido {
+            return Err(ErroDeAcesso::BiometriaIndisponivel);
+        }
+        let guardada = self
+            .cofre
+            .ler(CHAVE_BIOMETRIA)?
+            .ok_or(ErroDeAcesso::BiometriaIndisponivel)?;
+        let chave = Zeroizing::new(
+            <[u8; 32]>::try_from(guardada.as_slice()).map_err(|_| ErroDeAcesso::Interno)?,
+        );
+        let dek =
+            cripto::desembrulhar(&embrulhada, &chave).ok_or(ErroDeAcesso::BiometriaIndisponivel)?;
+        let agora = self.relogio.agora();
+        self.concluir_desbloqueio(dek, persistido, agora, "biometria")
+    }
+
+    /// UL-05: ativa a biometria. Exige a senha mestre.
+    pub fn ativar_biometria(&mut self, senha: &str) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        if !self.esta_desbloqueado() {
+            return Err(ErroDeAcesso::Bloqueado);
+        }
+        if !self.biometria.disponivel() {
+            return Err(ErroDeAcesso::BiometriaIndisponivel);
+        }
+        self.reautenticar_com_senha(senha)?;
+        let mut chave = Zeroizing::new([0u8; 32]);
+        OsRng.fill_bytes(chave.as_mut());
+        let dek = self.dek.as_ref().ok_or(ErroDeAcesso::Bloqueado)?;
+        let embrulhada = cripto::embrulhar(dek, &chave)?;
+        self.cofre.guardar(CHAVE_BIOMETRIA, chave.as_slice())?;
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        persistido.dek_por_biometria = Some(embrulhada);
+        armazenamento::salvar(&self.diretorio, &persistido)?;
+        self.auditar("biometria-ativada", Detalhe::new())?;
+        self.estado()
+    }
+
+    pub fn desativar_biometria(&mut self) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        if !self.esta_desbloqueado() {
+            return Err(ErroDeAcesso::Bloqueado);
+        }
+        self.cofre.remover(CHAVE_BIOMETRIA)?;
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        persistido.dek_por_biometria = None;
+        armazenamento::salvar(&self.diretorio, &persistido)?;
+        self.auditar("biometria-desativada", Detalhe::new())?;
+        self.estado()
+    }
+
+    /// Quantos eventos locais ainda não enviados seriam descartados por uma redefinição.
+    pub fn previa_redefinicao_local(&self) -> Result<u64, ErroDeAcesso> {
+        Ok(armazenamento::ler(&self.diretorio)?.eventos_pendentes)
+    }
+
+    /// UL-10 (RN-35): esqueceu a senha mestre. Descarta o banco local, mantém o vínculo do computador
+    /// com a conta. Só por ação explícita, com `DESCARTAR` digitado e login completo nesta execução.
+    pub fn redefinir_desbloqueio_local(
+        &mut self,
+        confirmacao: &str,
+    ) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        if confirmacao != "DESCARTAR" {
+            return Err(ErroDeAcesso::ConfirmacaoInvalida);
+        }
+        let persistido = armazenamento::ler(&self.diretorio)?;
+        if persistido.revogado {
+            return Err(ErroDeAcesso::DispositivoRevogado);
+        }
+        if !self.sessao_online {
+            return Err(ErroDeAcesso::ExigeLoginCompleto);
+        }
+        let agora = self.relogio.agora();
+        // O login desta execução (ou o usuário já conhecido) é reaplicado quando a nova senha for definida.
+        let dados = self.login_pendente.clone().or_else(|| {
+            let usuario = self.usuario.clone()?;
+            Some(DadosDoLogin {
+                usuario,
+                politica: self.politica(),
+                dispositivo_id: persistido.dispositivo_id.clone()?,
+                ocorrido_em: agora,
+            })
+        });
+
+        self.apagar_banco()?;
+        self.cofre.remover(CHAVE_BIOMETRIA)?;
+        let novo = EstadoPersistido {
+            dispositivo_id: persistido.dispositivo_id,
+            max_falhas_desbloqueio_local: persistido.max_falhas_desbloqueio_local,
+            auditoria_pendente: vec![RegistroPendente {
+                tipo: "desbloqueio-local-redefinido".to_owned(),
+                ocorrido_em: agora,
+                detalhe: Default::default(),
+            }],
+            ..EstadoPersistido::default()
+        };
+        armazenamento::salvar(&self.diretorio, &novo)?;
+
+        self.usuario = None;
+        self.reautenticado_em = None;
+        self.login_pendente = dados;
+        self.checkin_pendente = None;
+        self.situacao_desbloqueada = Situacao::Normal;
+        self.estado()
+    }
+
+    /// Computador revogado pelo servidor: o usuário descarta tudo para poder entrar de novo como
+    /// um computador novo (nova chave de auditoria, novo registro de dispositivo).
+    pub fn redefinir_computador_revogado(
+        &mut self,
+        confirmacao: &str,
+    ) -> Result<EstadoDoAcesso, ErroDeAcesso> {
+        if confirmacao != "DESCARTAR" {
+            return Err(ErroDeAcesso::ConfirmacaoInvalida);
+        }
+        if !armazenamento::ler(&self.diretorio)?.revogado {
+            return Err(ErroDeAcesso::ConfirmacaoInvalida);
+        }
+        self.apagar_banco()?;
+        match fs::remove_file(self.diretorio.join(armazenamento::NOME_DO_ARQUIVO)) {
+            Ok(()) => {}
+            Err(erro) if erro.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err(ErroDeAcesso::Interno),
+        }
+        for nome in [CHAVE_REFRESH, CHAVE_BIOMETRIA, CHAVE_AUDITORIA] {
+            self.cofre.remover(nome)?;
+        }
+        self.usuario = None;
+        self.sessao_online = false;
+        self.reautenticado_em = None;
+        self.login_pendente = None;
+        self.checkin_pendente = None;
+        self.situacao_desbloqueada = Situacao::Normal;
+        self.estado()
+    }
+
+    /// Fecha o banco, zera a DEK da memória e apaga `dados.db`, `-wal` e `-shm`.
+    fn apagar_banco(&mut self) -> Result<(), ErroDeAcesso> {
+        if let Some(banco) = self.banco.take() {
+            let _ = banco.fechar();
+        }
+        self.dek = None;
+        for nome in [
+            NOME_DO_BANCO.to_owned(),
+            format!("{NOME_DO_BANCO}-wal"),
+            format!("{NOME_DO_BANCO}-shm"),
+        ] {
+            match fs::remove_file(self.diretorio.join(nome)) {
+                Ok(()) => {}
+                Err(erro) if erro.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err(ErroDeAcesso::Interno),
+            }
+        }
+        Ok(())
     }
 
     pub fn dispositivo_id(&self) -> Result<Option<String>, ErroDeAcesso> {
@@ -1543,6 +1751,296 @@ mod testes {
         outra[31] = 7;
         outra[0] = 0;
         assert!(!iguais_em_tempo_constante(&[7u8; 32], &outra));
+    }
+
+    use crate::acesso_local::biometria::BiometriaFalsa;
+
+    fn servico_com_biometria(
+        ambiente: &Ambiente,
+        biometria: Arc<BiometriaFalsa>,
+    ) -> ServicoDeAcessoLocal {
+        ambiente.servico().com_biometria(biometria)
+    }
+
+    #[test]
+    fn sem_biometria_ativar_e_desbloquear_devolvem_indisponivel() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        assert!(!servico.estado().unwrap().biometria_disponivel);
+        assert!(matches!(
+            servico.ativar_biometria(SENHA),
+            Err(ErroDeAcesso::BiometriaIndisponivel)
+        ));
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        assert!(matches!(
+            servico.desbloquear_com_biometria(),
+            Err(ErroDeAcesso::BiometriaIndisponivel)
+        ));
+    }
+
+    #[test]
+    fn ativar_exige_a_senha_certa_e_depois_a_biometria_abre_o_mesmo_banco() {
+        let ambiente = Ambiente::novo();
+        let biometria = Arc::new(BiometriaFalsa::nova(true, true));
+        let mut servico = servico_com_biometria(&ambiente, biometria);
+        servico.configurar(SENHA).unwrap();
+        servico
+            .banco()
+            .unwrap()
+            .gravar_valor("marcador", "ainda-aqui")
+            .unwrap();
+
+        assert!(matches!(
+            servico.ativar_biometria("senha-errada-123"),
+            Err(ErroDeAcesso::SenhaMestreIncorreta)
+        ));
+        assert!(!servico.estado().unwrap().biometria_habilitada);
+
+        ambiente.relogio.avancar(Duration::seconds(700));
+        let estado = servico.ativar_biometria(SENHA).unwrap();
+        assert!(estado.biometria_habilitada && estado.biometria_disponivel);
+        assert!(ambiente.cofre.ler(CHAVE_BIOMETRIA).unwrap().is_some());
+
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        let aberto = servico.desbloquear_com_biometria().unwrap();
+        assert_eq!(aberto.situacao, Situacao::Normal);
+        assert_eq!(
+            servico
+                .banco()
+                .unwrap()
+                .ler_valor("marcador")
+                .unwrap()
+                .as_deref(),
+            Some("ainda-aqui")
+        );
+        let tipos: Vec<(String, Option<String>)> = armazenamento::ler(ambiente.pasta.path())
+            .unwrap()
+            .auditoria_pendente
+            .into_iter()
+            .map(|r| {
+                (
+                    r.tipo,
+                    r.detalhe
+                        .get("metodo")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_owned),
+                )
+            })
+            .collect();
+        assert!(tipos.contains(&("biometria-ativada".to_owned(), None)));
+        assert!(tipos.contains(&(
+            "desbloqueio-local-ok".to_owned(),
+            Some("biometria".to_owned())
+        )));
+    }
+
+    #[test]
+    fn biometria_cancelada_falha_e_a_senha_mestre_continua_funcionando() {
+        let ambiente = Ambiente::novo();
+        let biometria = Arc::new(BiometriaFalsa::nova(true, true));
+        let mut servico = servico_com_biometria(&ambiente, biometria.clone());
+        servico.configurar(SENHA).unwrap();
+        servico.ativar_biometria(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+
+        biometria.definir_aprovacao(false);
+        assert!(matches!(
+            servico.desbloquear_com_biometria(),
+            Err(ErroDeAcesso::BiometriaIndisponivel)
+        ));
+        assert!(!servico.esta_desbloqueado());
+        assert_eq!(
+            servico.desbloquear_com_senha(SENHA).unwrap().situacao,
+            Situacao::Normal
+        );
+    }
+
+    #[test]
+    fn biometria_nao_zera_o_contador_de_falhas_de_senha() {
+        let ambiente = Ambiente::novo();
+        let biometria = Arc::new(BiometriaFalsa::nova(true, true));
+        let mut servico = servico_com_biometria(&ambiente, biometria);
+        servico.configurar(SENHA).unwrap();
+        servico.ativar_biometria(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        ambiente.errar(&mut servico);
+        servico.desbloquear_com_biometria().unwrap();
+        assert_eq!(
+            armazenamento::ler(ambiente.pasta.path())
+                .unwrap()
+                .falhas_consecutivas,
+            1
+        );
+    }
+
+    #[test]
+    fn desativar_remove_a_chave_e_o_embrulho() {
+        let ambiente = Ambiente::novo();
+        let biometria = Arc::new(BiometriaFalsa::nova(true, true));
+        let mut servico = servico_com_biometria(&ambiente, biometria);
+        servico.configurar(SENHA).unwrap();
+        servico.ativar_biometria(SENHA).unwrap();
+        let estado = servico.desativar_biometria().unwrap();
+        assert!(!estado.biometria_habilitada);
+        assert!(ambiente.cofre.ler(CHAVE_BIOMETRIA).unwrap().is_none());
+        assert!(
+            armazenamento::ler(ambiente.pasta.path())
+                .unwrap()
+                .dek_por_biometria
+                .is_none()
+        );
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        assert!(matches!(
+            servico.desbloquear_com_biometria(),
+            Err(ErroDeAcesso::BiometriaIndisponivel)
+        ));
+    }
+
+    #[test]
+    fn redefinir_desbloqueio_local_exige_a_confirmacao_e_nao_apaga_nada_sem_ela() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.aplicar_login(dados_do_login(&ambiente)).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        for errada in ["descartar", "", "SIM"] {
+            assert!(matches!(
+                servico.redefinir_desbloqueio_local(errada),
+                Err(ErroDeAcesso::ConfirmacaoInvalida)
+            ));
+        }
+        assert!(ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+        assert!(
+            armazenamento::ler(ambiente.pasta.path())
+                .unwrap()
+                .kdf
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn redefinir_desbloqueio_local_sem_sessao_online_exige_login_completo() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        assert!(matches!(
+            servico.redefinir_desbloqueio_local("DESCARTAR"),
+            Err(ErroDeAcesso::ExigeLoginCompleto)
+        ));
+        assert!(ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+    }
+
+    #[test]
+    fn redefinir_desbloqueio_local_apaga_o_banco_mantem_o_dispositivo_e_permite_nova_senha() {
+        let ambiente = Ambiente::novo();
+        let biometria = Arc::new(BiometriaFalsa::nova(true, true));
+        let mut servico = servico_com_biometria(&ambiente, biometria);
+        servico.configurar(SENHA).unwrap();
+        servico.aplicar_login(dados_do_login(&ambiente)).unwrap();
+        servico.ativar_biometria(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        ambiente
+            .cofre
+            .guardar(CHAVE_REFRESH, b"refresh-fica")
+            .unwrap();
+        ambiente.cofre.guardar(CHAVE_AUDITORIA, &[3u8; 32]).unwrap();
+
+        let estado = servico.redefinir_desbloqueio_local("DESCARTAR").unwrap();
+
+        assert_eq!(estado.situacao, Situacao::SemConfiguracao);
+        assert!(!ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(
+            disco.dispositivo_id.as_deref(),
+            Some("22222222-2222-4222-8222-222222222222")
+        );
+        assert_eq!(disco.max_falhas_desbloqueio_local, 7);
+        assert!(
+            disco.kdf.is_none()
+                && disco.dek_por_senha.is_none()
+                && disco.dek_por_biometria.is_none()
+        );
+        assert!(
+            disco
+                .auditoria_pendente
+                .iter()
+                .any(|r| r.tipo == "desbloqueio-local-redefinido")
+        );
+        assert!(ambiente.cofre.ler(CHAVE_BIOMETRIA).unwrap().is_none());
+        assert!(ambiente.cofre.ler(CHAVE_REFRESH).unwrap().is_some());
+        assert!(ambiente.cofre.ler(CHAVE_AUDITORIA).unwrap().is_some());
+
+        // Define uma nova senha: o usuário volta e o registro da redefinição vai para a auditoria.
+        let novo = servico.configurar("nova-senha-mestre-forte").unwrap();
+        assert_eq!(novo.situacao, Situacao::Normal);
+        assert_eq!(novo.usuario.unwrap().nome, "Lucas");
+        let gravados = auditoria::pendentes(servico.banco().unwrap(), 100).unwrap();
+        assert!(
+            gravados
+                .iter()
+                .any(|r| r.tipo == "desbloqueio-local-redefinido")
+        );
+    }
+
+    #[test]
+    fn redefinir_computador_revogado_apaga_tudo_inclusive_as_chaves() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.aplicar_login(dados_do_login(&ambiente)).unwrap();
+        ambiente.cofre.guardar(CHAVE_REFRESH, b"r").unwrap();
+        ambiente.cofre.guardar(CHAVE_BIOMETRIA, b"b").unwrap();
+        ambiente.cofre.guardar(CHAVE_AUDITORIA, &[3u8; 32]).unwrap();
+        servico.processar_revogacao().unwrap();
+
+        assert!(matches!(
+            servico.redefinir_computador_revogado("descartar"),
+            Err(ErroDeAcesso::ConfirmacaoInvalida)
+        ));
+        assert!(ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+
+        let estado = servico.redefinir_computador_revogado("DESCARTAR").unwrap();
+        assert_eq!(estado.situacao, Situacao::SemConfiguracao);
+        assert!(!estado.sessao_online);
+        assert!(!ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+        assert!(
+            !ambiente
+                .pasta
+                .path()
+                .join(armazenamento::NOME_DO_ARQUIVO)
+                .exists()
+        );
+        for nome in [CHAVE_REFRESH, CHAVE_BIOMETRIA, CHAVE_AUDITORIA] {
+            assert!(
+                ambiente.cofre.ler(nome).unwrap().is_none(),
+                "{nome} deveria ter sido removida"
+            );
+        }
+    }
+
+    #[test]
+    fn redefinir_computador_nao_revogado_e_recusado() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        assert!(matches!(
+            servico.redefinir_computador_revogado("DESCARTAR"),
+            Err(ErroDeAcesso::ConfirmacaoInvalida)
+        ));
+        assert!(ambiente.pasta.path().join(NOME_DO_BANCO).exists());
+    }
+
+    #[test]
+    fn previa_da_redefinicao_informa_os_eventos_pendentes() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        let mut disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        disco.eventos_pendentes = 4;
+        armazenamento::salvar(ambiente.pasta.path(), &disco).unwrap();
+        assert_eq!(servico.previa_redefinicao_local().unwrap(), 4);
     }
 
     #[test]
