@@ -314,7 +314,7 @@
 ---
 
 ### TASK-085: `LoginTela` — e-mail e senha (UC-02)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 269 testes, vue-tsc, oxlint e build limpos. Desvio: durante o envio os campos ficam desabilitados (CampoTexto não tem readonly); a tela descarta o desafio anterior ao abrir. Screenshots na captura geral da TASK-095)
 - **Depende de**: TASK-082, TASK-084
 - **Objetivo**: Primeiro passo do login fiel ao Figma, com erros genéricos (RN-12) e estados de bloqueio/limite.
 - **Arquivos permitidos**: `src/acesso/ui/telas/LoginTela.vue` (substituir placeholder), `src/acesso/ui/telas/LoginTela.spec.ts` (novo)
