@@ -1,0 +1,14 @@
+export const UNIDADE_DE_TRABALHO = Symbol('UnidadeDeTrabalho');
+export const HASHER_DE_SENHA = Symbol('HasherDeSenha');
+export const SERVICO_TOTP = Symbol('ServicoTotp');
+export const COFRE_DE_SEGREDOS = Symbol('CofreDeSegredos');
+export const EMISSOR_DE_TOKENS = Symbol('EmissorDeTokens');
+export const ENVIADOR_DE_EMAIL = Symbol('EnviadorDeEmail');
+export const RELOGIO = Symbol('Relogio');
+export const BARRAMENTO_DE_EVENTOS = Symbol('BarramentoDeEventos');
+export const GERADOR_DE_CODIGOS_DE_RECUPERACAO = Symbol('GeradorDeCodigosDeRecuperacao');
+export const CALCULADORA_DE_HASH = Symbol('CalculadoraDeHash');
+export const VERIFICADOR_DE_ASSINATURA = Symbol('VerificadorDeAssinatura');
+export const POLITICA_DE_ACESSO = Symbol('PoliticaDeAcesso');
+export const POLITICA_DE_SENHA = Symbol('PoliticaDeSenha');
+export const CONFIGURACAO = Symbol('Configuracao');
