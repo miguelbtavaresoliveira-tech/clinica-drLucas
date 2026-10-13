@@ -1,0 +1,3 @@
+//! Módulo `acesso_local`: tudo o que protege os dados deste computador e fala com a API (D-005).
+pub mod comandos;
+pub mod erros;

@@ -88,7 +88,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-060: Dependências Rust, esqueleto do módulo e tipo de erro
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (fmt/clippy/test (6) e cargo audit sem vulnerabilidades, validados no WSL2)
 - **Depende de**: TASK-006
 - **Objetivo**: Preparar o crate com as bibliotecas da SPEC §7.2, remover o comando de exemplo `greet` e definir o erro serializável único.
 - **Arquivos permitidos**: `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`, `src-tauri/src/acesso_local/mod.rs`, `src-tauri/src/acesso_local/erros.rs`, `src-tauri/src/acesso_local/comandos.rs` (novos os três últimos)
