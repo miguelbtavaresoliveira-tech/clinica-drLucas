@@ -9,6 +9,8 @@ export default mergeConfig(
       globals: true,
       setupFiles: ["./src/test/setup.ts"],
       include: ["src/**/*.spec.ts"],
+      // Navegar para rotas carrega as telas reais (import dinâmico): o primeiro import a frio é lento.
+      testTimeout: 30_000,
     },
   }),
 );

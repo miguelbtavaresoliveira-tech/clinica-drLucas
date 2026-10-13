@@ -538,7 +538,7 @@
 ---
 
 ### TASK-091: Casca do app, sinais de atividade, sessão online e avisos de modo offline (RN-21, RN-26, DT-11)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (implementada e verificada pelo Claude: 393 testes, vue-tsc, oxlint e build limpos. Desvios: composable de ui exportado como useEstadoDoAcessoNaUI (evita colidir com useEstadoDoAcesso da aplicação); ConectarTela sem o número de dias (o estado do Rust não expõe o limite); testTimeout global de 30 s no vitest.config.ts (import a frio das telas). Screenshots na TASK-095)
 - **Depende de**: TASK-090
 - **Objetivo**: Layout das telas autenticadas, envio de atividade ao Rust, reação ao evento `acesso://estado-alterado`, renovação da sessão quando houver internet e o aviso fixo de **modo somente leitura** (SPEC §7.2).
 - **Arquivos permitidos** (em `src/acesso/ui/`): `layout/AppShell.vue`, `telas/InicioTela.vue` (substituir placeholder), `telas/ConectarTela.vue` (substituir placeholder), `componentes/BannerSomenteLeitura.vue`, `componentes/BannerSessao.vue`, `composables/useSinalDeAtividade.ts`, `composables/useEstadoDoAcesso.ts`, `composables/useSessaoOnline.ts`, `.spec.ts` de cada; `src/App.vue` (editar)

@@ -3,9 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EstadoDoAcesso, Situacao } from '../acesso/application/tipos';
 import { criarRoteador } from './index';
 
-// Os redirecionamentos carregam telas reais (import dinâmico); o primeiro import a frio é lento.
-vi.setConfig({ testTimeout: 30_000 });
-
 const estado = (situacao: Situacao, extras: Partial<EstadoDoAcesso> = {}): EstadoDoAcesso => ({
   situacao,
   exigeLoginCompleto: false,
