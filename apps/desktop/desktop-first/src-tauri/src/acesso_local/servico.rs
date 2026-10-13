@@ -8,6 +8,7 @@ use base64::engine::general_purpose::STANDARD;
 use chrono::{DateTime, Duration, Utc};
 
 use super::armazenamento::{self, EstadoPersistido, Kdf, RegistroPendente};
+use super::auditoria::{self, Detalhe, TIPOS_DE_AUDITORIA_DO_APP, ValorDeDetalhe};
 use super::banco_local::BancoLocal;
 use super::cofre_so::CofreDeChavesDoSo;
 use super::cripto::{self, Chave, ParametrosArgon2};
@@ -24,7 +25,6 @@ const CHAVE_POLITICA: &str = "politica";
 
 pub struct ServicoDeAcessoLocal {
     diretorio: PathBuf,
-    #[allow(dead_code)]
     // usado a partir da TASK-068 (chave de auditoria) e da TASK-069 (refresh token)
     cofre: Arc<dyn CofreDeChavesDoSo>,
     relogio: Arc<dyn Relogio>,
@@ -125,7 +125,11 @@ impl ServicoDeAcessoLocal {
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
         self.ultima_atividade = Instant::now();
-        self.reavaliar_modo()
+        self.carregar_usuario();
+        self.reavaliar_modo()?;
+        // Melhor esforço: o que não for descarregado continua no arquivo e sai no próximo desbloqueio.
+        let _ = self.descarregar_pendentes();
+        self.estado()
     }
 
     /// UL-02: desbloqueio com atraso persistido (RN-27). Nunca apaga dados por falha (RN-28).
@@ -198,7 +202,11 @@ impl ServicoDeAcessoLocal {
         self.banco = Some(banco);
         self.situacao_desbloqueada = Situacao::Normal;
         self.ultima_atividade = Instant::now();
-        self.reavaliar_modo()
+        self.carregar_usuario();
+        self.reavaliar_modo()?;
+        // Melhor esforço: o que não for descarregado continua no arquivo e sai no próximo desbloqueio.
+        let _ = self.descarregar_pendentes();
+        self.estado()
     }
 
     /// Política vinda do banco (gravada no login) ou o padrão.
@@ -260,14 +268,116 @@ impl ServicoDeAcessoLocal {
         self.estado()
     }
 
-    fn registrar_bloqueio(&self, motivo: MotivoDeBloqueio) -> Result<(), ErroDeAcesso> {
+    fn registrar_bloqueio(&mut self, motivo: MotivoDeBloqueio) -> Result<(), ErroDeAcesso> {
+        let detalhe: Detalhe = [(
+            "motivo".to_owned(),
+            ValorDeDetalhe::Texto(motivo.como_texto().to_owned()),
+        )]
+        .into();
+        self.auditar("app-bloqueado", detalhe)?;
+        self.atualizar_eventos_pendentes()
+    }
+
+    /// Grava o registro assinado direto no banco quando é possível (desbloqueado, com usuário e
+    /// dispositivo conhecidos); senão guarda em `auditoria_pendente` para gravar no próximo desbloqueio.
+    pub fn auditar(&mut self, tipo: &str, detalhe: Detalhe) -> Result<(), ErroDeAcesso> {
+        if !TIPOS_DE_AUDITORIA_DO_APP.contains(&tipo) {
+            return Err(ErroDeAcesso::Interno);
+        }
+        let agora = self.relogio.agora();
         let mut persistido = armazenamento::ler(&self.diretorio)?;
+        if let (Some(banco), Some(usuario), Some(dispositivo)) = (
+            self.banco.as_ref(),
+            self.usuario.as_ref(),
+            persistido.dispositivo_id.as_deref(),
+        ) {
+            let chave = auditoria::chave_de_assinatura(self.cofre.as_ref())?;
+            auditoria::registrar(
+                banco,
+                &chave,
+                tipo,
+                detalhe,
+                agora,
+                &usuario.id,
+                dispositivo,
+            )?;
+            return Ok(());
+        }
         persistido.auditoria_pendente.push(RegistroPendente {
-            tipo: "app-bloqueado".to_owned(),
-            ocorrido_em: self.relogio.agora(),
-            detalhe: [("motivo".to_owned(), serde_json::json!(motivo.como_texto()))].into(),
+            tipo: tipo.to_owned(),
+            ocorrido_em: agora,
+            detalhe: detalhe
+                .iter()
+                .map(|(chave, valor)| {
+                    (
+                        chave.clone(),
+                        serde_json::to_value(valor).unwrap_or(serde_json::Value::Null),
+                    )
+                })
+                .collect(),
         });
         armazenamento::salvar(&self.diretorio, &persistido)
+    }
+
+    /// Passa para o banco, na ordem, o que foi gerado com o app bloqueado. Tudo ou nada.
+    fn descarregar_pendentes(&mut self) -> Result<(), ErroDeAcesso> {
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        let (Some(banco), Some(usuario), Some(dispositivo)) = (
+            self.banco.as_ref(),
+            self.usuario.as_ref(),
+            persistido.dispositivo_id.clone(),
+        ) else {
+            return Ok(());
+        };
+        if persistido.auditoria_pendente.is_empty() {
+            return Ok(());
+        }
+        let chave = auditoria::chave_de_assinatura(self.cofre.as_ref())?;
+        let transacao = banco
+            .conexao()
+            .unchecked_transaction()
+            .map_err(|_| ErroDeAcesso::Interno)?;
+        for pendente in &persistido.auditoria_pendente {
+            let detalhe: Detalhe = pendente
+                .detalhe
+                .iter()
+                .map(|(chave, valor)| (chave.clone(), ValorDeDetalhe::from(valor)))
+                .collect();
+            auditoria::registrar(
+                banco,
+                &chave,
+                &pendente.tipo,
+                detalhe,
+                pendente.ocorrido_em,
+                &usuario.id,
+                &dispositivo,
+            )?;
+        }
+        transacao.commit().map_err(|_| ErroDeAcesso::Interno)?;
+        persistido.auditoria_pendente.clear();
+        persistido.eventos_pendentes = auditoria::contar_pendentes(banco)?;
+        armazenamento::salvar(&self.diretorio, &persistido)
+    }
+
+    /// Mantém no arquivo o total de eventos ainda não enviados, visível mesmo com o app bloqueado.
+    fn atualizar_eventos_pendentes(&self) -> Result<(), ErroDeAcesso> {
+        let banco = self.banco.as_ref().ok_or(ErroDeAcesso::Bloqueado)?;
+        let mut persistido = armazenamento::ler(&self.diretorio)?;
+        let no_arquivo = u64::try_from(persistido.auditoria_pendente.len()).unwrap_or(0);
+        persistido.eventos_pendentes =
+            auditoria::contar_pendentes(banco)?.saturating_add(no_arquivo);
+        armazenamento::salvar(&self.diretorio, &persistido)
+    }
+
+    fn carregar_usuario(&mut self) {
+        let gravado = self
+            .banco
+            .as_ref()
+            .and_then(|banco| banco.ler_valor("usuario").ok().flatten())
+            .and_then(|json| serde_json::from_str::<UsuarioResumo>(&json).ok());
+        if gravado.is_some() {
+            self.usuario = gravado;
+        }
     }
 
     /// Sinal de atividade do usuário. Sem efeito com o app bloqueado: nunca desbloqueia.
@@ -778,6 +888,135 @@ mod testes {
             .collect();
         assert_eq!(bloqueios.len(), 1);
         assert_eq!(bloqueios[0].detalhe["motivo"], "inatividade");
+    }
+
+    fn conhecer_dispositivo(ambiente: &Ambiente) {
+        let mut disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        disco.dispositivo_id = Some("22222222-2222-4222-8222-222222222222".to_owned());
+        armazenamento::salvar(ambiente.pasta.path(), &disco).unwrap();
+    }
+
+    fn gravar_usuario(servico: &ServicoDeAcessoLocal) {
+        let usuario = UsuarioResumo {
+            id: "11111111-1111-4111-8111-111111111111".to_owned(),
+            nome: "Lucas".to_owned(),
+            email: "lucas@clinica.com".to_owned(),
+        };
+        servico
+            .banco()
+            .unwrap()
+            .gravar_valor("usuario", &serde_json::to_string(&usuario).unwrap())
+            .unwrap();
+    }
+
+    #[test]
+    fn registros_com_o_app_bloqueado_sao_gravados_no_banco_na_ordem_ao_desbloquear() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        gravar_usuario(&servico);
+        conhecer_dispositivo(&ambiente);
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        servico
+            .auditar(
+                "biometria-ativada",
+                [(
+                    "origem".to_owned(),
+                    ValorDeDetalhe::Texto("teste".to_owned()),
+                )]
+                .into(),
+            )
+            .unwrap();
+        let antes = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(antes.auditoria_pendente.len(), 2);
+
+        servico.desbloquear_com_senha(SENHA).unwrap();
+
+        let depois = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert!(depois.auditoria_pendente.is_empty());
+        assert_eq!(depois.eventos_pendentes, 3);
+        let gravados = auditoria::pendentes(servico.banco().unwrap(), 100).unwrap();
+        let tipos: Vec<&str> = gravados.iter().map(|r| r.tipo.as_str()).collect();
+        assert_eq!(
+            tipos,
+            ["app-bloqueado", "biometria-ativada", "desbloqueio-local-ok"]
+        );
+        assert_eq!(gravados[0].hash_anterior, None);
+        assert_eq!(
+            gravados[1].hash_anterior.as_deref(),
+            Some(gravados[0].hash.as_str())
+        );
+        assert_eq!(
+            gravados[2].hash_anterior.as_deref(),
+            Some(gravados[1].hash.as_str())
+        );
+    }
+
+    #[test]
+    fn sem_usuario_conhecido_os_registros_ficam_no_arquivo() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        servico.desbloquear_com_senha(SENHA).unwrap();
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert_eq!(disco.auditoria_pendente.len(), 2);
+        assert_eq!(
+            auditoria::contar_pendentes(servico.banco().unwrap()).unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn auditar_desbloqueado_com_usuario_grava_direto_no_banco() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        gravar_usuario(&servico);
+        conhecer_dispositivo(&ambiente);
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        servico.desbloquear_com_senha(SENHA).unwrap();
+
+        servico
+            .auditar("reautenticacao-sensivel", Detalhe::new())
+            .unwrap();
+        let gravados = auditoria::pendentes(servico.banco().unwrap(), 100).unwrap();
+        assert_eq!(gravados.last().unwrap().tipo, "reautenticacao-sensivel");
+        assert_eq!(servico.estado().unwrap().usuario.unwrap().nome, "Lucas");
+    }
+
+    #[test]
+    fn tipo_de_auditoria_fora_da_lista_e_recusado() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        servico.configurar(SENHA).unwrap();
+        assert!(matches!(
+            servico.auditar("tipo-inventado", Detalhe::new()),
+            Err(ErroDeAcesso::Interno)
+        ));
+    }
+
+    #[test]
+    fn nenhum_detalhe_contem_a_senha() {
+        let ambiente = Ambiente::novo();
+        let mut servico = ambiente.servico();
+        let senha = "senha-mestre-de-teste";
+        servico.configurar(senha).unwrap();
+        gravar_usuario(&servico);
+        conhecer_dispositivo(&ambiente);
+        servico.bloquear(MotivoDeBloqueio::Manual).unwrap();
+        ambiente.errar(&mut servico);
+        servico.desbloquear_com_senha(senha).unwrap();
+
+        let disco = armazenamento::ler(ambiente.pasta.path()).unwrap();
+        assert!(
+            !serde_json::to_string(&disco.auditoria_pendente)
+                .unwrap()
+                .contains(senha)
+        );
+        for registro in auditoria::pendentes(servico.banco().unwrap(), 100).unwrap() {
+            assert!(!serde_json::to_string(&registro).unwrap().contains(senha));
+        }
     }
 
     #[test]

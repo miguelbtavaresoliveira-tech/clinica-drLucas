@@ -538,7 +538,7 @@ Códigos de erro próprios do Rust (`ErroDoApp.codigo`): `SENHA_MESTRE_INCORRETA
 ---
 
 ### TASK-068: Auditoria local encadeada e assinada (UL-11, RN-37, RN-39, DT-13, D-009)
-- **Status**: `[ ] Pendente`
+- **Status**: `[x] Aprovada` (vetores D-009 batem byte a byte; fmt/clippy/test (91 no módulo) validados no WSL2)
 - **Depende de**: TASK-066
 - **Objetivo**: Gravar registros locais encadeados por hash e assinados com Ed25519, no formato canônico idêntico ao servidor.
 - **Arquivos permitidos**: `src-tauri/src/acesso_local/auditoria.rs` (novo); `servico.rs`, `mod.rs` (editar)
